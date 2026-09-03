@@ -24,7 +24,14 @@ export function parseUpstreamEvent(raw: string): ParsedUpstreamEvent {
   }
   if (!hasData) return { kind: 'comment' };
   if (dataLines.length === 0) return { kind: 'ignore' };
-  const payload = dataLines.join('\n');
+  // SSE spec joins multi-line `data:` fields with a literal U+000A.
+  // JSON.parse, however, rejects literal control chars inside string
+  // literals — the JSON spec only allows the escape sequence `\n`.
+  // Escape every raw newline in the joined payload so JSON.parse
+  // accepts it, then the resulting string is identical to what the
+  // spec produces (one logical newline at the join point, no extras).
+  const rawPayload = dataLines.join('\n');
+  const payload = rawPayload.replace(/\n/g, '\\n');
   if (payload === '') return { kind: 'ignore' };
   if (payload === '[DONE]') return { kind: 'done' };
   try {

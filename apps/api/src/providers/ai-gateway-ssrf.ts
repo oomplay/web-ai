@@ -61,7 +61,27 @@ export function resolveChatEndpoint(
   } catch {
     throw new GatewayConfigError('AI gateway base URL is not a valid URL.');
   }
-  if (parsed.protocol !== 'https:') {
+  // HTTPS-only enforcement. This is the transport-security control: a
+  // production operator who points the gateway at an `http://` URL is
+  // either misconfigured or trying to MITM themselves, and the API key
+  // would leak in cleartext over the wire. We refuse to start in that
+  // case.
+  //
+  // The dev/verify harness (`AI_GATEWAY_ALLOW_LOOPBACK=true` against a
+  // local 127.0.0.1 mock) needs HTTP, so we honour the same opt-out
+  // here that the private/loopback check honours. The opt-out is
+  // suppressed when `NODE_ENV=production`, so a production deploy
+  // *cannot* accidentally talk to an HTTP gateway.
+  const httpOptOut =
+    process.env.AI_GATEWAY_ALLOW_LOOPBACK === 'true' &&
+    process.env.NODE_ENV !== 'production';
+  if (httpOptOut) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[ai-gateway] AI_GATEWAY_ALLOW_LOOPBACK=true: allowing http:// ' +
+        'base URL. This MUST NOT be enabled in production.',
+    );
+  } else if (parsed.protocol !== 'https:') {
     throw new GatewayConfigError(
       `AI gateway base URL must use https: (got '${parsed.protocol}').`,
     );

@@ -146,14 +146,20 @@ export function chatRouter(deps: ChatRouterDeps): Router {
       }
     } catch (err) {
       // Sanitize: never leak provider error text. Server-side log keeps
-      // the real cause for operators.
+      // the real cause for operators; the message returned to the client
+      // is whatever the provider threw through safeProviderError(),
+      // which is already user-safe. If for any reason the error is not
+      // an Error instance, fall back to a generic message.
       // eslint-disable-next-line no-console
       console.error('[api] chat provider error', {
         ip,
         model,
         message: err instanceof Error ? err.message : String(err),
       });
-      userError = 'Provider error.';
+      userError =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Provider error.';
     } finally {
       clearAllTimers();
       if (userError) writeEvent({ error: userError });
