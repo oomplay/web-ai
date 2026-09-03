@@ -25,8 +25,26 @@ function startMockGateway() {
           headers: { ...req.headers },
           body,
         });
-        // Test hook: x-test-error forces a specific failure mode.
-        const forced = (req.headers['x-test-error'] || '').toString();
+        // Test hook: a user message whose content starts with `force-XXX`
+        // makes the mock gateway return the upstream error code named
+        // by XXX. The verify harness exercises this to assert that the
+        // application sanitises upstream 5xx / 4xx into a user-safe
+        // message instead of echoing the upstream's body.
+        const forced = (() => {
+          try {
+            const parsed = JSON.parse(body || '{}');
+            const last = Array.isArray(parsed.messages)
+              ? [...parsed.messages].reverse().find(
+                  (m) => m && m.role === 'user' && typeof m.content === 'string',
+                )
+              : null;
+            const c = last && last.content ? last.content : '';
+            const m = /^force-(\d{3})/.exec(c);
+            return m ? m[1] : '';
+          } catch {
+            return '';
+          }
+        })();
         if (forced === '500') {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end('{"error":{"message":"upstream is on fire"}}');
