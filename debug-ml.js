@@ -1,0 +1,1 @@
+const lineA = "data: {\"choices\":[{\"delta\":{\"content\":\"line1";const lineB = "data: line2\"}}]}";const mlPayload = lineA + String.fromCharCode(10) + lineB;console.log("payload:", JSON.stringify(mlPayload));console.log("lines:", JSON.stringify(mlPayload.split(String.fromCharCode(10))));

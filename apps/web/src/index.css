@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-zinc-50 text-zinc-900 antialiased;
+}
+
+html.dark body {
+  @apply bg-zinc-950 text-zinc-100;
+}
+
+/* Use light hljs theme by default, dark theme when html.dark */
+html.dark .hljs {
+  @apply bg-zinc-900;
+}
+
+/* Scrollbar */
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  @apply bg-zinc-300 rounded-full;
+}
+html.dark .thin-scroll::-webkit-scrollbar-thumb {
+  @apply bg-zinc-700;
+}
+
+/* Prose-like styles for markdown bubbles */
+.md > * {
+  margin: 0.5rem 0;
+}
+.md > *:first-child {
+  margin-top: 0;
+}
+.md > *:last-child {
+  margin-bottom: 0;
+}
+.md p {
+  line-height: 1.55;
+}
+.md ul,
+.md ol {
+  padding-left: 1.25rem;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-weight: 600;
+  line-height: 1.25;
+}
+.md h1 {
+  font-size: 1.4rem;
+}
+.md h2 {
+  font-size: 1.2rem;
+}
+.md h3 {
+  font-size: 1.05rem;
+}
+.md code:not(pre code) {
+  @apply rounded bg-zinc-200 px-1 py-0.5 text-[0.85em] font-mono;
+}
+html.dark .md code:not(pre code) {
+  @apply bg-zinc-800;
+}
+.md pre {
+  @apply rounded-lg p-3 overflow-x-auto text-sm;
+  background: #f6f8fa;
+}
+html.dark .md pre {
+  background: #0d1117;
+}
+.md a {
+  @apply text-brand-600 underline;
+}
+html.dark .md a {
+  @apply text-brand-400;
+}
+.md blockquote {
+  @apply border-l-4 border-zinc-300 pl-3 text-zinc-600;
+}
+html.dark .md blockquote {
+  @apply border-zinc-700 text-zinc-400;
+}
+.md table {
+  @apply border-collapse w-full text-sm;
+}
+.md th,
+.md td {
+  @apply border border-zinc-200 px-2 py-1;
+}
+html.dark .md th,
+html.dark .md td {
+  @apply border-zinc-700;
+}
