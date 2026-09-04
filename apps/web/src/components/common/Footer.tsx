@@ -28,7 +28,7 @@ export function Footer() {
             Terms
           </a>
           <a
-            href="mailto:hello@web-ai.local"
+            href="mailto:hello@kiwicraft.in"
             className="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200"
           >
             Contact

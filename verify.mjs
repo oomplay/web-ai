@@ -673,6 +673,100 @@ async function frontendChecks() {
     /chat|models|other/.test(metricsRegSrc) &&
       /idle|max-duration|client-abort|other/.test(metricsRegSrc) &&
       /http-4xx-client|http-4xx-rate|http-5xx|timeout|network|parse|aborted|other/.test(metricsRegSrc));
+  // ========================================================================
+  // Phase 4: production hardening acceptance. The verify suite pins the
+  // artefacts that wire the monorepo to the operator's production
+  // environment (https://chat.kiwicraft.in via Cloudflare Tunnel). These
+  // checks are file-based; the live /api/health, /api/metrics, and tunnel
+  // health are operator manual checks (see deploy/README.md section 10).
+  // ========================================================================
+
+  // 1) No more web-ai.local placeholder in index.html.
+  const indexHtml = fs.readFileSync(
+    path.resolve('apps/web/index.html'),
+    'utf8',
+  );
+  record('phase 4: index.html has no web-ai.local placeholder',
+    !/web-ai\.local/.test(indexHtml));
+  // 2) Production origin appears in canonical, og:url, and JSON-LD.
+  record('phase 4: index.html canonical/og/JSON-LD point at chat.kiwicraft.in',
+    /rel="canonical"\s+href="https:\/\/chat\.kiwicraft\.in\//.test(indexHtml) &&
+      /property="og:url"\s+content="https:\/\/chat\.kiwicraft\.in\//.test(indexHtml) &&
+      /"url":\s*"https:\/\/chat\.kiwicraft\.in\//.test(indexHtml));
+  // 3) Sitemap points at the production origin.
+  const sitemapXml = fs.readFileSync(
+    path.resolve('apps/web/public/sitemap.xml'),
+    'utf8',
+  );
+  record('phase 4: sitemap.xml loc points at chat.kiwicraft.in',
+    /<loc>https:\/\/chat\.kiwicraft\.in\/<\/loc>/.test(sitemapXml) &&
+      !/web-ai\.local/.test(sitemapXml));
+  // 4) robots.txt sitemap pointer matches.
+  const robotsTxt = fs.readFileSync(
+    path.resolve('apps/web/public/robots.txt'),
+    'utf8',
+  );
+  record('phase 4: robots.txt sitemap pointer matches production origin',
+    /Sitemap:\s+https:\/\/chat\.kiwicraft\.in\/sitemap\.xml/.test(robotsTxt) &&
+      !/web-ai\.local/.test(robotsTxt));
+  // 5) Footer contact mailto is the production address.
+  const footerSrc = fs.readFileSync(
+    path.resolve('apps/web/src/components/common/Footer.tsx'),
+    'utf8',
+  );
+  record('phase 4: footer mailto is hello@kiwicraft.in (no web-ai.local)',
+    /mailto:hello@kiwicraft\.in/.test(footerSrc) &&
+      !/web-ai\.local/.test(footerSrc));
+  // 6) API production env sets CORS_ORIGIN to the production origin.
+  const apiProdEnv = fs.readFileSync(
+    path.resolve('apps/api/.env.production.example'),
+    'utf8',
+  );
+  record('phase 4: api production env sets CORS_ORIGIN=https://chat.kiwicraft.in',
+    /^CORS_ORIGIN=https:\/\/chat\.kiwicraft\.in$/m.test(apiProdEnv));
+  // 7) API production env sets TRUST_PROXY_HOPS=1 for the
+  //    Cloudflare-Edge -> cloudflared -> Node topology.
+  record('phase 4: api production env sets TRUST_PROXY_HOPS=1',
+    /^TRUST_PROXY_HOPS=1$/m.test(apiProdEnv));
+  // 8) Web production env points the bundle at the production API.
+  const webProdEnv = fs.readFileSync(
+    path.resolve('apps/web/.env.production.example'),
+    'utf8',
+  );
+  record('phase 4: web production env sets VITE_API_BASE_URL=https://chat.kiwicraft.in',
+    /^VITE_API_BASE_URL=https:\/\/chat\.kiwicraft\.in$/m.test(webProdEnv));
+  // 9) deploy/README.md references both systemd units and the smoke tests.
+  const deployReadme = fs.readFileSync(
+    path.resolve('deploy/README.md'),
+    'utf8',
+  );
+  record('phase 4: deploy README references both units and smoke tests',
+    /cloudflared\.service/.test(deployReadme) &&
+      /web-ai-api\.service/.test(deployReadme) &&
+      /\/api\/health/.test(deployReadme) &&
+      /\/api\/metrics/.test(deployReadme) &&
+      /chat\.kiwicraft\.in/.test(deployReadme));
+  // 10) cloudflared.service ExecStart must include --proxy-add-x-forwarded-for
+  //     so the Cloudflare-Edge-set X-Forwarded-For actually reaches the
+  //     Node API. Without it, every request appears to come from the
+  //     cloudflared loopback address and the per-IP rate limit collapses.
+  const cfService = fs.readFileSync(
+    path.resolve('deploy/cloudflared/cloudflared.service'),
+    'utf8',
+  );
+  record('phase 4: cloudflared.service uses --proxy-add-x-forwarded-for',
+    /--proxy-add-x-forwarded-for/.test(cfService) &&
+      /ExecStart=.*cloudflared/.test(cfService));
+  // 11) API service uses the production environment file and the
+  //     unprivileged web-ai user.
+  const apiService = fs.readFileSync(
+    path.resolve('deploy/api/web-ai-api.service'),
+    'utf8',
+  );
+  record('phase 4: api service uses /opt/web-ai env file and web-ai user',
+    /EnvironmentFile=\/opt\/web-ai\/apps\/api\/.env/.test(apiService) &&
+      /User=web-ai/.test(apiService) &&
+      /WorkingDirectory=\/opt\/web-ai/.test(apiService));
 }
 
 function newStore() {

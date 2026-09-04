@@ -1,0 +1,42 @@
+# =============================================================================
+# systemd unit for the WEB-AI Node API
+# =============================================================================
+# Install on the production host:
+#   sudo cp deploy/api/web-ai-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now web-ai-api
+#
+# The Node API binds to 127.0.0.1:8787 only. It is reachable from the
+# public internet ONLY through the Cloudflare Tunnel (cloudflared).
+# Direct exposure of port 8787 is the responsibility of the firewall;
+# this unit does not open any public port.
+# =============================================================================
+
+[Unit]
+Description=WEB-AI Node API (chat backend)
+Documentation=https://github.com/your-org/WEB-AI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=web-ai
+Group=web-ai
+WorkingDirectory=/opt/web-ai
+EnvironmentFile=/opt/web-ai/apps/api/.env
+ExecStart=/usr/bin/node apps/api/dist/index.js
+Restart=on-failure
+RestartSec=5s
+# The chat endpoint serves SSE streams; raise the fd limit so the
+# process can hold many concurrent long-lived connections.
+LimitNOFILE=65536
+# Hardening: no new privileges, write only to the install dir for
+# the structured-log destination if one is added later.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/web-ai/apps/api/dist
+
+[Install]
+WantedBy=multi-user.target

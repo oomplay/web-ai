@@ -1,0 +1,46 @@
+# =============================================================================
+# systemd unit for the Cloudflare Tunnel daemon
+# =============================================================================
+# Install on the production host:
+#   sudo cp deploy/cloudflared/cloudflared.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cloudflared
+#
+# This unit runs `cloudflared` as the `cloudflared` system user (created
+# in deploy/README.md), reads /etc/cloudflared/config.yml, and connects
+# outbound to Cloudflare Edge. There is no inbound port to manage.
+# =============================================================================
+
+[Unit]
+Description=Cloudflare Tunnel for WEB-AI (chat.kiwicraft.in)
+Documentation=https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cloudflared
+Group=cloudflared
+EnvironmentFile=-/etc/default/cloudflared
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.yml run web-ai
+# --proxy-add-x-forwarded-for is the canonical way to make the daemon
+# forward the Cloudflare-Edge-set X-Forwarded-For header to the local
+# origin. Without it, the Node API would see the cloudflared loopback
+# address for every request, collapsing the per-IP rate limit to a
+# single counter. We rely on the value TRUST_PROXY_HOPS=1 in
+# apps/api/.env.production.example to trust exactly this header.
+ExecStartPost=/bin/sleep 1
+Restart=on-failure
+RestartSec=5s
+# Cloudflared opens many concurrent connections to Cloudflare Edge;
+# raise the fd limit above the systemd default of 1024.
+LimitNOFILE=65536
+# Hardening: no new privileges, write only to the runtime dir.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/etc/cloudflared /var/lib/cloudflared
+
+[Install]
+WantedBy=multi-user.target

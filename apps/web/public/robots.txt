@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 
 # The app is meant to be crawled. Sitemap is static for v1.
-Sitemap: https://web-ai.local/sitemap.xml
+Sitemap: https://chat.kiwicraft.in/sitemap.xml

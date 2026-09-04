@@ -1,0 +1,58 @@
+# =============================================================================
+# Cloudflare Tunnel configuration for WEB-AI
+# =============================================================================
+# This file is read by the `cloudflared` daemon installed on the
+# production host. It defines ONE tunnel that forwards
+# chat.kiwicraft.in -> http://127.0.0.1:8787 (the local Node API).
+#
+# Cloudflare Edge performs the public TLS termination; the daemon
+# talks plain HTTP to the local API on the loopback interface only.
+#
+# Operator steps to make this file live:
+#   1. Run `cloudflared tunnel login` once in a browser to authorise.
+#   2. Run `cloudflared tunnel create web-ai` to create the tunnel.
+#      The command prints the TUNNEL_ID and writes the credentials JSON
+#      to ~/.cloudflared/<TUNNEL_ID>.json. Copy that file to
+#      /etc/cloudflared/<TUNNEL_ID>.json on the production host.
+#   3. Replace the placeholders below with the real TUNNEL_ID.
+#   4. In the Cloudflare dashboard for kiwicraft.in, create a CNAME
+#      record that points chat.kiwicraft.in at <TUNNEL_ID>.cfargotunnel.com
+#      OR run `cloudflared tunnel route dns web-ai chat.kiwicraft.in`
+#      which does the same thing.
+#   5. Start the systemd service (see deploy/cloudflared/cloudflared.service).
+# =============================================================================
+
+tunnel: web-ai
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+# Optional: a named origin certificate. Not required when ingress
+# targets a loopback HTTP backend; Cloudflare Edge handles the public
+# cert automatically.
+
+ingress:
+  # Public hostname -> local API. The wildcard is NOT used; this is
+  # an exact-hostname match.
+  - hostname: chat.kiwicraft.in
+    service: http://127.0.0.1:8787
+    originRequest:
+      # Keep the connection alive long enough for SSE streams. The
+      # Node API enforces its own SSE_MAX_DURATION_MS (120s) on the
+      # server side, so this just needs to exceed the keepalive
+      # interval to avoid mid-stream TCP resets.
+      keepAliveConnections: 4
+      keepAliveTimeout: 90s
+      # Disable HTTP/2 to the origin; the local daemon/API leg is
+      # short and HTTP/1.1 is simpler to debug. Cloudflare Edge still
+      # speaks HTTP/2 (or HTTP/3) to the client.
+      http2Origin: false
+      # Pass through the Cloudflare-Edge-set X-Forwarded-For so the
+      # Node API can identify the real client IP. The systemd unit
+      # also passes --proxy-add-x-forwarded-for on the daemon command
+      # line, which is the canonical way to do this; the originRequest
+      # block here is a defence-in-depth reminder.
+      noTLSVerify: false
+
+  # Catch-all 404. Every other hostname (or a request that misses
+  # the tunnel entirely) is rejected. This prevents misconfigured
+  # DNS records from accidentally exposing the local API.
+  - service: http_status:404
