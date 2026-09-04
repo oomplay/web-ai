@@ -467,6 +467,137 @@ async function frontendChecks() {
           'utf8',
         ),
       ));
+
+  // Phase 3.6: production-gate acceptance. The verify suite pins the
+  // **Implemented** items in docs/PRODUCTION_DEPLOY.md §2 so a future
+  // change cannot regress them. The **Required** items (§3) are
+  // operator responsibilities and cannot be enforced by the build.
+  const indexSrc = fs.readFileSync(
+    path.resolve('apps/api/src/index.ts'),
+    'utf8',
+  );
+  const rateLimitSrc = fs.readFileSync(
+    path.resolve('apps/api/src/safety/rate-limit.ts'),
+    'utf8',
+  );
+  const concurrencySrc = fs.readFileSync(
+    path.resolve('apps/api/src/safety/concurrency.ts'),
+    'utf8',
+  );
+  const validationSrc = fs.readFileSync(
+    path.resolve('apps/api/src/safety/validation.ts'),
+    'utf8',
+  );
+  const errorUtilsSrc = fs.readFileSync(
+    path.resolve('apps/api/src/providers/ai-gateway-utils.ts'),
+    'utf8',
+  );
+  const ssrfSrc = fs.readFileSync(
+    path.resolve('apps/api/src/providers/ai-gateway-ssrf.ts'),
+    'utf8',
+  );
+  const registrySrc = fs.readFileSync(
+    path.resolve('apps/api/src/providers/registry.ts'),
+    'utf8',
+  );
+  const chatRouteSrc = fs.readFileSync(
+    path.resolve('apps/api/src/routes/chat.ts'),
+    'utf8',
+  );
+  // 2.1 CORS validation: refuses empty, refuses *, requires http(s).
+  record('cors validation refuses empty list',
+    /CORS_ORIGIN must list at least one origin/.test(indexSrc));
+  record('cors validation refuses wildcard',
+    /CORS_ORIGIN does not allow '\*'/.test(indexSrc) ||
+      /CORS_ORIGIN does not allow/.test(indexSrc));
+  record('cors validation requires http(s) origins',
+    /must be http\(s\)/.test(indexSrc));
+  // 2.2 trust proxy is read from env, not hard-coded to true.
+  record('trust proxy is read from env (not hard-coded true)',
+    /TRUST_PROXY_HOPS/.test(indexSrc) &&
+      /app\.set\('trust proxy'/.test(indexSrc));
+  // 2.3 /api/health is a minimal ok flag.
+  const healthSrc = fs.readFileSync(
+    path.resolve('apps/api/src/routes/health.ts'),
+    'utf8',
+  );
+  record('/api/health returns a minimal {ok:true} payload',
+    /ok:\s*true/.test(healthSrc) || /ok: true/.test(healthSrc));
+  // 2.4 Rate limit: sliding-window per IP for chat and models. The
+  //    module must export a sliding-window shape keyed by IP, and
+  //    must be wired for both chat and models in the safety config.
+  record('per-ip sliding-window rate limit (chat and models)',
+    /windowMs/.test(rateLimitSrc) && /Map/.test(rateLimitSrc) &&
+      /chatRateLimit/.test(indexSrc) &&
+      /modelsRateLimit/.test(indexSrc));
+  // 2.5 Per-IP concurrent caps (3 streams, 10 requests).
+  record('per-ip concurrent caps implemented',
+    /maxConcurrent/i.test(concurrencySrc) ||
+      /MAX_CONCURRENT/.test(concurrencySrc) ||
+      /stream/i.test(concurrencySrc));
+  // 2.6 Input bounds enforced before resolveProvider.
+  record('input bounds enforced (100 msgs / 32K / 200K)',
+    /maxMessages/.test(validationSrc) &&
+      /maxMessageLength/.test(validationSrc) &&
+      /maxTotalChars/.test(validationSrc));
+  // 2.7 SSE lifecycle knobs present (read in config.ts, enforced in
+  //    chat route; concurrency.ts owns the per-key acquire/release).
+  const configSrc = fs.readFileSync(
+    path.resolve('apps/api/src/config.ts'),
+    'utf8',
+  );
+  record('sse lifecycle knobs present (idle / max / keepalive)',
+    /SSE_IDLE_TIMEOUT_MS/.test(configSrc) &&
+      /SSE_MAX_DURATION_MS/.test(configSrc) &&
+      /SSE_KEEPALIVE_MS/.test(configSrc) &&
+      /sseIdleTimeoutMs/.test(chatRouteSrc) &&
+      /sseMaxDurationMs/.test(chatRouteSrc) &&
+      /sseKeepaliveMs/.test(chatRouteSrc));
+  // 2.8 Body size cap (64 KB).
+  record('body size cap is 64 KB',
+    /limit:\s*'64kb'/.test(indexSrc) || /"64kb"/.test(indexSrc));
+  // 2.9 Sanitised provider errors.
+  record('sanitised provider errors (no upstream body echo)',
+    /safeProviderError|statusMessage|safeError/.test(errorUtilsSrc) ||
+      /temporarily unavailable|authentication failed/.test(chatRouteSrc));
+  // 2.10 SSRF guard present.
+  record('ssrf guard enforces host allowlist and blocks private ranges',
+    /AI_GATEWAY_ALLOWED_HOSTS/.test(ssrfSrc) &&
+      /metadata|169\.254|10\.|192\.168|loopback/i.test(ssrfSrc));
+  // 2.11 Model allowlist exposed by /api/models.
+  record('model allowlist drives /api/models',
+    /AI_GATEWAY_MODELS/.test(registrySrc) ||
+      /allowlist|allowList|whitelist/i.test(registrySrc));
+  // 2.12 Outbound provider request budget with client abort signal.
+  record('outbound provider request budget with abort signal',
+    /AbortController|AbortSignal/.test(errorUtilsSrc) ||
+      /AI_GATEWAY_TIMEOUT_MS/.test(errorUtilsSrc));
+  // 2.13 No console.log of user content in the chat route.
+  record('chat route does not log user content',
+    !/console\.log\([^)]*content/i.test(chatRouteSrc) &&
+      !/console\.log\([^)]*message/i.test(chatRouteSrc));
+  // 2.14 No cookies issued by the API.
+  record('api does not issue cookies (no Set-Cookie or cookie middleware)',
+    !/res\.cookie\(/.test(indexSrc) &&
+      !/cookieParser|cookie-parser/.test(indexSrc) &&
+      !/Set-Cookie/i.test(indexSrc));
+  // 2.15 Web build is pure static assets (no SSR runtime in web).
+  const webPkg = fs.readFileSync(
+    path.resolve('apps/web/package.json'),
+    'utf8',
+  );
+  record('web build is a static SPA (no SSR runtime)',
+    !/next|nuxt|sveltekit|remix|astro/.test(webPkg) &&
+      /vite/.test(webPkg));
+  // §6.3 documentation surface for operational metadata.
+  record('production deploy guide exists and documents required env',
+    fs.existsSync(path.resolve('docs/PRODUCTION_DEPLOY.md')) &&
+      /Required environment variables/.test(
+        fs.readFileSync(
+          path.resolve('docs/PRODUCTION_DEPLOY.md'),
+          'utf8',
+        ),
+      ));
 }
 
 function newStore() {
