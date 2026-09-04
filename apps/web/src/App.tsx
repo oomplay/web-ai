@@ -3,9 +3,11 @@ import { Sidebar } from './components/common/Sidebar';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { TopBanner } from './components/ads/AdSlot';
 import { ChatWindow } from './components/chat/ChatWindow';
+import { Landing } from './components/landing/Landing';
 import { useConversations } from './hooks/useConversations';
 import { useChat } from './hooks/useChat';
 import { classNames } from './lib/format';
+import { shouldStartInChat, withChatFlag } from './lib/route';
 
 const MODEL_KEY = 'webai.selectedModel.v1';
 
@@ -14,9 +16,21 @@ function readInitialModel(): string {
   return window.localStorage.getItem(MODEL_KEY) ?? 'mock-mini';
 }
 
+function readInitialLandingOpen(): boolean {
+  // The landing page is shown when the URL does NOT contain `?chat=1`.
+  // `?chat=1` reveals the chat directly so the URL is bookmarkable and
+  // a deep link into the chat is possible.
+  return !shouldStartInChat();
+}
+
 export default function App() {
   const [model, setModel] = useState<string>(readInitialModel);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Landing gate: true = show <Landing />, false = show chat. The "Start
+  // chatting" CTA on the landing page flips this to false and pushes a
+  // `?chat=1` query string so the URL is shareable and the back button
+  // returns to the landing page.
+  const [landingOpen, setLandingOpen] = useState<boolean>(readInitialLandingOpen);
   // Track the active conversation id so the model-sync effect below does not
   // re-fire on every streaming delta (which produces a new `active` object even
   // though the id is unchanged).
@@ -83,6 +97,26 @@ export default function App() {
     createConversation();
     setSidebarOpen(false);
   };
+
+  const startChat = () => {
+    setLandingOpen(false);
+    // Reflect the state in the URL so it is shareable and the back button
+    // works. We use `history.replaceState` (not push) so the landing page
+    // is the canonical entry point of a fresh tab.
+    if (typeof window !== 'undefined') {
+      try {
+        const target = withChatFlag(window.location.pathname);
+        window.history.replaceState(null, '', target);
+      } catch {
+        /* ignore: history API can be unavailable in some sandboxes */
+      }
+    }
+  };
+
+  if (landingOpen) {
+    return <Landing onStartChat={startChat} />;
+  }
+
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">

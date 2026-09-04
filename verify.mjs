@@ -304,6 +304,23 @@ async function frontendChecks() {
     /src="\/assets\/index-[A-Za-z0-9_-]+\.js"/.test(html));
   record('app html has responsive viewport meta',
     html.includes('width=device-width'));
+  record('app html has theme-color meta',
+    /<meta name="theme-color"/.test(html));
+  record('app html has OpenGraph title',
+    /<meta property="og:title"/.test(html));
+  record('app html has canonical link',
+    /<link rel="canonical"/.test(html));
+  record('app html has JSON-LD Organization',
+    /"@type"\s*:\s*"Organization"/.test(html));
+
+  // Phase 3.1: robots.txt + sitemap.xml are served by the preview server
+  // (vite copies public/ into dist/ at build time).
+  const robots = await fetch(APP + '/robots.txt').then((r) => r.text()).catch(() => '');
+  record('robots.txt is served and allows all',
+    robots.includes('User-agent: *') && robots.includes('Allow: /'));
+  const sitemap = await fetch(APP + '/sitemap.xml').then((r) => r.text()).catch(() => '');
+  record('sitemap.xml is served with one URL',
+    sitemap.includes('<urlset') && sitemap.includes('<loc>'));
 
   const files = fs.readdirSync(path.join(DIST, 'assets'));
   const js = files.find((f) => f.startsWith('index-') && f.endsWith('.js'));
@@ -316,6 +333,13 @@ async function frontendChecks() {
   record('bundle contains mock model id', jsBody.includes('mock-mini'));
   record('bundle references /api/chat via fetch', jsBody.includes('/api/chat'));
   record('bundle contains theme toggle aria', jsBody.includes('Switch to'));
+  // Phase 3.1: landing page copy is present in the bundle (smoke test).
+  record('bundle contains landing hero copy',
+    jsBody.includes('No login, no signup, no subscription.'));
+  record('bundle contains Start chatting CTA',
+    jsBody.includes('Start chatting'));
+  record('bundle contains FAQ section',
+    jsBody.includes('Frequently asked questions'));
 
   const cssBody = fs.readFileSync(path.join(DIST, 'assets', css), 'utf8');
   record('css contains highlight.js styles', cssBody.includes('.hljs'));
