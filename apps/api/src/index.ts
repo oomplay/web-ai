@@ -8,6 +8,8 @@ import { chatRouter } from './routes/chat.js';
 import { errorHandler } from './middleware/error.js';
 import { createRateLimiter } from './safety/rate-limit.js';
 import { createConcurrencyLimiter } from './safety/concurrency.js';
+import { createMetricsRegistry } from './metrics/registry.js';
+import { metricsRouter } from './routes/metrics.js';
 
 const registry = createRegistry({
   mockEnabled: config.mockProviderEnabled,
@@ -35,6 +37,10 @@ const modelsRateLimiter = createRateLimiter({
 });
 const streamLimiter = createConcurrencyLimiter(config.safety.maxConcurrentStreamsPerIp);
 const requestLimiter = createConcurrencyLimiter(config.safety.maxConcurrentRequestsPerIp);
+// Single metrics registry shared by the chat route and the /api/metrics
+// route. Phase 3.7-A: in-process counters only; a multi-instance
+// deployment must move this to a shared store (PHASE_3_PLAN.md §6).
+const metrics = createMetricsRegistry();
 
 // CORS hardening: explicit allowlist parsed at boot. We REFUSE to start if
 // the operator left the list empty or set it to '*'.
@@ -80,6 +86,12 @@ if (config.trustProxyHops > 0) {
   app.set('trust proxy', config.trustProxyHops);
 }
 
+// /api/metrics is mounted BEFORE the CORS middleware and BEFORE any
+// rate limiters, because:
+//   - it must not be reachable from a cross-origin browser context,
+//   - the operator's Prometheus scrape loop must not be throttled.
+app.use('/api', metricsRouter(metrics));
+
 app.use(cors(corsOptions));
 // Body size: chat is the only endpoint that needs more than a few hundred
 // bytes. Per-message / total caps live in validateChatInput().
@@ -112,6 +124,7 @@ app.use(
     rateLimiter: modelsRateLimiter,
     rateLimitName: 'models',
     requestLimiter,
+    metrics,
   }),
 );
 app.use(
@@ -121,6 +134,7 @@ app.use(
     rateLimiter: chatRateLimiter,
     rateLimitName: 'chat',
     streamLimiter,
+    metrics,
     validation: {
       maxMessages: config.safety.maxMessages,
       maxMessageLength: config.safety.maxMessageLength,

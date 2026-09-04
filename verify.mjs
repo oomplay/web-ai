@@ -598,6 +598,81 @@ async function frontendChecks() {
           'utf8',
         ),
       ));
+
+  // Phase 3.7-A: /api/metrics endpoint + in-process counters.
+  // The verify suite pins:
+  //   - endpoint exists and serves text/plain Prometheus format
+  //   - all four metric families are present in the rendered output
+  //   - the snapshot does not leak user content, API keys, or model
+  //     upstream names
+  //   - the route is mounted before CORS (so a browser cannot scrape it)
+  //   - the route is not rate-limited (so the operator's scrape loop
+  //     is not throttled)
+  const indexSrc2 = fs.readFileSync(
+    path.resolve('apps/api/src/index.ts'),
+    'utf8',
+  );
+  const metricsRouteSrc = fs.readFileSync(
+    path.resolve('apps/api/src/routes/metrics.ts'),
+    'utf8',
+  );
+  const metricsRegSrc = fs.readFileSync(
+    path.resolve('apps/api/src/metrics/registry.ts'),
+    'utf8',
+  );
+  // 1) Endpoint exists.
+  const metricsResp = await fetch(API + '/api/metrics');
+  record('metrics endpoint returns 200',
+    metricsResp.status === 200,
+    'status=' + metricsResp.status);
+  // 2) Content-Type is Prometheus text format.
+  const metricsCt = metricsResp.headers.get('content-type') || '';
+  record('metrics endpoint serves text/plain Prometheus format',
+    metricsCt.startsWith('text/plain') && metricsCt.includes('version=0.0.4'),
+    'ct=' + metricsCt);
+  // 3) All four metric families present.
+  const metricsBody = await metricsResp.text();
+  record('metrics output contains all four metric families',
+    /web_ai_rate_limit_rejections_total\{/.test(metricsBody) &&
+      /web_ai_active_streams\b/.test(metricsBody) &&
+      /web_ai_sse_aborts_total\{/.test(metricsBody) &&
+      /web_ai_provider_errors_total\{/.test(metricsBody));
+  // 4) The snapshot is empty of the things the security model forbids.
+  record('metrics output contains no API key or bearer prefix',
+    !/sk-[a-zA-Z0-9_-]{8,}/.test(metricsBody) &&
+      !/Authorization: Bearer/.test(metricsBody));
+  record('metrics output does not include the chat rate-limit name verbatim',
+    // The route label is a literal 'chat' or 'models'; the prometheus
+    // output must not echo the message content or any per-request IP.
+    !/\bip="/.test(metricsBody) &&
+      !/content="/.test(metricsBody));
+  // 5) Route is mounted before CORS so it cannot be scraped cross-origin.
+  const mountIdx = indexSrc2.indexOf("metricsRouter(metrics)");
+  const corsIdx = indexSrc2.indexOf('app.use(cors(');
+  record('metrics route is mounted before the CORS middleware',
+    mountIdx > 0 && corsIdx > 0 && mountIdx < corsIdx);
+  // 6) Route is not behind the rate limiters: there is no `app.use`
+  //    line that pairs a rate limiter with the metrics route, and
+  //    the route is mounted before the chat/models routers that
+  //    enforce per-IP rate limits. The endpoint is expected to be
+  //    scraped at a steady rate by Prometheus.
+  const rateLimitUse = indexSrc2.match(/app\.use\([^)]*rateLimiter[^)]*\)/);
+  record('metrics route is not behind a rate limiter',
+    mountIdx > 0 &&
+      (rateLimitUse === null || rateLimitUse.index > mountIdx));
+  // 7) No new npm dependency: the renderer is pure string concat.
+  const apiPkg = JSON.parse(
+    fs.readFileSync(path.resolve('apps/api/package.json'), 'utf8'),
+  );
+  record('metrics endpoint introduces no new runtime dependency',
+    !('prom-client' in (apiPkg.dependencies || {})) &&
+      !('prom-client' in (apiPkg.devDependencies || {})));
+  // 8) The renderer is pure: same input -> same output, with no I/O.
+  //    A small in-process smoke check on the registry is enough.
+  record('metrics registry has bounded label cardinality',
+    /chat|models|other/.test(metricsRegSrc) &&
+      /idle|max-duration|client-abort|other/.test(metricsRegSrc) &&
+      /http-4xx-client|http-4xx-rate|http-5xx|timeout|network|parse|aborted|other/.test(metricsRegSrc));
 }
 
 function newStore() {

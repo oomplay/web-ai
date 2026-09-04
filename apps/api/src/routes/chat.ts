@@ -6,6 +6,7 @@ import type { ConcurrencyLimiter } from '../safety/concurrency.js';
 import type { RateLimiter } from '../safety/rate-limit.js';
 import { rateLimitHeaders } from '../safety/rate-limit.js';
 import { clientIp, validateChatInput } from '../safety/validation.js';
+import type { MetricsRegistry } from '../metrics/registry.js';
 
 type SafetyConfig = (typeof AppConfig)['safety'];
 
@@ -14,12 +15,13 @@ export interface ChatRouterDeps {
   rateLimiter: RateLimiter;
   rateLimitName: string;
   streamLimiter: ConcurrencyLimiter;
+  metrics: MetricsRegistry;
   validation: Pick<SafetyConfig, 'maxMessages' | 'maxMessageLength' | 'maxTotalChars'>;
   sse: Pick<SafetyConfig, 'sseIdleTimeoutMs' | 'sseMaxDurationMs' | 'sseKeepaliveMs'>;
 }
 
 export function chatRouter(deps: ChatRouterDeps): Router {
-  const { registry, rateLimiter, rateLimitName, streamLimiter, sse } = deps;
+  const { registry, rateLimiter, rateLimitName, streamLimiter, sse, metrics } = deps;
   const router = Router();
 
   router.post('/chat', async (req: Request, res: Response) => {
@@ -33,6 +35,7 @@ export function chatRouter(deps: ChatRouterDeps): Router {
       res.setHeader(k, v);
     }
     if (!rl.allow) {
+      metrics.incRateLimitRejection('chat');
       res.status(429).json({ error: 'Too many requests.' });
       return;
     }
@@ -40,14 +43,17 @@ export function chatRouter(deps: ChatRouterDeps): Router {
     // 2) Per-IP concurrent SSE stream cap. Acquire BEFORE doing any heavy
     //    work, release on every exit path.
     if (!streamLimiter.acquire(ip)) {
+      metrics.incRateLimitRejection('chat');
       res.status(429).json({ error: 'Too many concurrent streams.' });
       return;
     }
+    metrics.incSseStart();
     let slotReleased = false;
     const releaseSlot = () => {
       if (slotReleased) return;
       slotReleased = true;
       streamLimiter.release(ip);
+      metrics.incSseEnd();
     };
 
     // 3) Input validation (rejects `system`, oversize messages, etc).
@@ -96,12 +102,21 @@ export function chatRouter(deps: ChatRouterDeps): Router {
     };
     const armIdle = () => {
       if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => ac.abort('idle'), sse.sseIdleTimeoutMs);
+      idleTimer = setTimeout(() => {
+        metrics.incSseAbort('idle');
+        ac.abort('idle');
+      }, sse.sseIdleTimeoutMs);
     };
-    maxTimer = setTimeout(() => ac.abort('max-duration'), sse.sseMaxDurationMs);
+    maxTimer = setTimeout(() => {
+      metrics.incSseAbort('max-duration');
+      ac.abort('max-duration');
+    }, sse.sseMaxDurationMs);
 
     req.on('close', () => {
-      if (!ac.signal.aborted) ac.abort('client-disconnect');
+      if (!ac.signal.aborted) {
+        ac.abort('client-disconnect');
+        metrics.incSseAbort('client-abort');
+      }
     });
 
     // 7) Writer — never throws, never writes after end, never leaks
@@ -112,6 +127,7 @@ export function chatRouter(deps: ChatRouterDeps): Router {
         res.write(`data: ${JSON.stringify(data)}\n\n`);
         return true;
       } catch {
+        metrics.incSseAbort('other');
         ac.abort('write-failed');
         return false;
       }
@@ -121,6 +137,7 @@ export function chatRouter(deps: ChatRouterDeps): Router {
       try {
         res.write(`: ${text}\n\n`);
       } catch {
+        metrics.incSseAbort('other');
         ac.abort('write-failed');
       }
     };
@@ -150,6 +167,31 @@ export function chatRouter(deps: ChatRouterDeps): Router {
       // is whatever the provider threw through safeProviderError(),
       // which is already user-safe. If for any reason the error is not
       // an Error instance, fall back to a generic message.
+      // Phase 3.7-A: increment the matching provider_errors_total bucket
+      // before sanitising. We only look at the error's `kind` and `status`
+      // (not the message), so the label is never derived from user content.
+      const meta = (err as { kind?: string; status?: number } | null) ?? null;
+      if (meta) {
+        if (meta.kind === 'aborted') {
+          metrics.incProviderError('aborted');
+        } else if (meta.kind === 'timeout') {
+          metrics.incProviderError('timeout');
+        } else if (meta.kind === 'network') {
+          metrics.incProviderError('network');
+        } else if (meta.kind === 'parse') {
+          metrics.incProviderError('parse');
+        } else if (meta.kind === 'http') {
+          if (meta.status === 429) metrics.incProviderError('http-4xx-rate');
+          else if (meta.status && meta.status >= 400 && meta.status < 500)
+            metrics.incProviderError('http-4xx-client');
+          else if (meta.status && meta.status >= 500) metrics.incProviderError('http-5xx');
+          else metrics.incProviderError('other');
+        } else {
+          metrics.incProviderError('other');
+        }
+      } else {
+        metrics.incProviderError('other');
+      }
       // eslint-disable-next-line no-console
       console.error('[api] chat provider error', {
         ip,

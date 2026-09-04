@@ -4,16 +4,18 @@ import type { ConcurrencyLimiter } from '../safety/concurrency.js';
 import type { RateLimiter } from '../safety/rate-limit.js';
 import { rateLimitHeaders } from '../safety/rate-limit.js';
 import { clientIp } from '../safety/validation.js';
+import type { MetricsRegistry } from '../metrics/registry.js';
 
 export interface ModelsRouterDeps {
   registry: Registry;
   rateLimiter: RateLimiter;
   rateLimitName: string;
   requestLimiter: ConcurrencyLimiter;
+  metrics: MetricsRegistry;
 }
 
 export function modelsRouter(deps: ModelsRouterDeps): Router {
-  const { registry, rateLimiter, rateLimitName, requestLimiter } = deps;
+  const { registry, rateLimiter, rateLimitName, requestLimiter, metrics } = deps;
   const router = Router();
 
   router.get('/models', async (req, res, next) => {
@@ -26,6 +28,7 @@ export function modelsRouter(deps: ModelsRouterDeps): Router {
       res.setHeader(k, v);
     }
     if (!rl.allow) {
+      metrics.incRateLimitRejection('models');
       res.status(429).json({ error: 'Too many requests.' });
       return;
     }
