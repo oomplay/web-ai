@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sidebar } from './components/common/Sidebar';
 import { ThemeToggle } from './components/common/ThemeToggle';
-import { TopBanner } from './components/ads/AdSlot';
+import { TopBanner } from './components/ads';
 import { ChatWindow } from './components/chat/ChatWindow';
 import { Landing } from './components/landing/Landing';
 import { useConversations } from './hooks/useConversations';

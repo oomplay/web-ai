@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { EmptyState } from './EmptyState';
-import { BottomBanner } from '../ads/AdSlot';
+import { BottomBanner } from '../ads';
 import type { Conversation } from '../../types/chat';
 import { ModelSelector } from '../common/ModelSelector';
 

@@ -341,6 +341,31 @@ async function frontendChecks() {
   record('bundle contains FAQ section',
     jsBody.includes('Frequently asked questions'));
 
+  // Phase 3.2: ad-provider dispatch is centralised (lib/ads.ts) and
+  // default-safe. Source-pinned checks follow the same pattern as the
+  // regressionChecks section (the repo has no node unit-test runner;
+  // the verify suite is the contract).
+  const adsSrc = fs.readFileSync(path.resolve('apps/web/src/lib/ads.ts'), 'utf8');
+  record('ads resolver defaults to placeholder',
+    /return 'placeholder'/.test(adsSrc));
+  record('ads resolver accepts only placeholder|adsense|none',
+    /\['placeholder',\s*'adsense',\s*'none'\]/.test(adsSrc));
+  record('ads resolver never touches storage or cookies',
+    !/(localStorage|sessionStorage|document\.cookie)/.test(adsSrc));
+  const adSlotSrc = fs.readFileSync(
+    path.resolve('apps/web/src/components/ads/AdSlot.tsx'),
+    'utf8',
+  );
+  record('AdSlot resolves provider via lib/ads (single source of truth)',
+    /getAdProvider/.test(adSlotSrc) && /lib\/ads/.test(adSlotSrc));
+  record('AdSlot supports a per-slot provider override',
+    /provider\??:/.test(adSlotSrc));
+  record('AdSlot none-mode reserves layout space without furniture',
+    /kind === 'none'/.test(adSlotSrc) && /min-h-\[60px\]/.test(adSlotSrc));
+  record('bundle contains all three ad provider kinds',
+    jsBody.includes('adsense') && jsBody.includes('none') &&
+      jsBody.includes('placeholder'));
+
   const cssBody = fs.readFileSync(path.join(DIST, 'assets', css), 'utf8');
   record('css contains highlight.js styles', cssBody.includes('.hljs'));
   record('css contains dark theme variants', /html\.dark/.test(cssBody));
