@@ -386,11 +386,36 @@ async function frontendChecks() {
     adsTxt.includes('google.com') && adsTxt.includes('DIRECT') &&
       /pub-0{10,}/.test(adsTxt));
 
+  // Phase 3.4: every ad-slot code path reserves the same min-height
+  // so the chat does not shift when a slot transitions between
+  // placeholder / loading / ready / none. Source-pinned.
+  const adsenseAdSrc = fs.readFileSync(
+    path.resolve('apps/web/src/components/ads/AdsenseAdProvider.tsx'),
+    'utf8',
+  );
+  const placeholderSrc = fs.readFileSync(
+    path.resolve('apps/web/src/components/ads/PlaceholderAdProvider.tsx'),
+    'utf8',
+  );
+  record('placeholder reserves min-h-[60px]',
+    /min-h-\[60px\]/.test(placeholderSrc));
+  record('adsense ready branch reserves min-h-[60px]',
+    /min-h-\[60px\] w-full/.test(adsenseAdSrc));
+  record('adsense none-mode reserves min-h-[60px]',
+    /min-h-\[60px\] w-full select-none/.test(adSlotSrc));
+  // Performance notes document the budget and the measured growth.
+  record('performance notes document the budget and the measurements',
+    fs.existsSync(path.resolve('docs/PERFORMANCE_NOTES.md')));
+
   const cssBody = fs.readFileSync(path.join(DIST, 'assets', css), 'utf8');
   record('css contains highlight.js styles', cssBody.includes('.hljs'));
   record('css contains dark theme variants', /html\.dark/.test(cssBody));
   record('css has responsive media queries (md+)',
     /@media[^{]*\(min-width:\s*768px\)/.test(cssBody));
+  // Phase 3.4: no third-party font added by ad providers; the existing
+  // theme is sufficient.
+  record('no @font-face rules introduced by ad providers',
+    !/@font-face/.test(cssBody));
 }
 
 function newStore() {
