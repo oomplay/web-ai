@@ -366,6 +366,26 @@ async function frontendChecks() {
     jsBody.includes('adsense') && jsBody.includes('none') &&
       jsBody.includes('placeholder'));
 
+  // Phase 3.3: the AdSense provider is wired behind env gates. The
+  // verify env never configures it, so the built app must make no
+  // AdSense network call and contain no publisher id.
+  record('bundle contains the adsbygoogle dispatch path',
+    jsBody.includes('adsbygoogle'));
+  record('bundle contains the NPA request path',
+    jsBody.includes('requestNonPersonalizedAds'));
+  record('AdSlot delegates the adsense kind to AdsenseAd',
+    /AdsenseAd/.test(adSlotSrc) && !/warnedAdsenseNotWired/.test(adSlotSrc));
+  record('adsense script is appended async and only when configured',
+    /script\.async = true/.test(adsSrc) &&
+      /getAdsenseClientId/.test(adsSrc) &&
+      /if \(!client\) return;/.test(adsSrc));
+  record('built bundle contains no literal ca-pub publisher id',
+    !/ca-pub-[0-9]{10,}/i.test(jsBody));
+  const adsTxt = await fetch(APP + '/ads.txt').then((r) => r.text()).catch(() => '');
+  record('ads.txt is served with a replaceable placeholder entry',
+    adsTxt.includes('google.com') && adsTxt.includes('DIRECT') &&
+      /pub-0{10,}/.test(adsTxt));
+
   const cssBody = fs.readFileSync(path.join(DIST, 'assets', css), 'utf8');
   record('css contains highlight.js styles', cssBody.includes('.hljs'));
   record('css contains dark theme variants', /html\.dark/.test(cssBody));

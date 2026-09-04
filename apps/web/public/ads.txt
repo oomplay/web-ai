@@ -1,0 +1,5 @@
+# ads.txt — authorizes the ad seller for this domain (AdSense program
+# requirement, PHASE_3_PLAN.md §7.1). REPLACE the placeholder pub- id
+# below with the operator's real AdSense publisher id before going
+# live. An unmodified placeholder must never reach production.
+google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
