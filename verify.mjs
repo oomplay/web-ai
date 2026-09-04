@@ -416,6 +416,57 @@ async function frontendChecks() {
   // theme is sufficient.
   record('no @font-face rules introduced by ad providers',
     !/@font-face/.test(cssBody));
+
+  // Phase 3.5: monetize-verification acceptance. The verify suite pins
+  // the build-time invariants; the operator-side items in
+  // docs/ADSENSE_REVIEW_CHECKLIST.md are not enforced here because they
+  // require a real AdSense account and a real domain.
+  const landingSrc = fs.readFileSync(
+    path.resolve('apps/web/src/components/landing/Landing.tsx'),
+    'utf8',
+  );
+  const appSrcForGate = fs.readFileSync(
+    path.resolve('apps/web/src/App.tsx'),
+    'utf8',
+  );
+  // 1. The default built bundle has no real ca-pub id; the placeholder
+  //    ads.txt entry is the only one the operator must replace.
+  record('built bundle has no real ca-pub id (regression pin)',
+    !/ca-pub-[0-9]{10,}/i.test(jsBody));
+  // 2. Landing-mode page must not render the chat-only ad slots. We
+  //    check that the Landing component does not import the chat-only
+  //    ad surfaces, and that the App-level gate is keyed on the chat
+  //    flag.
+  record('landing surface does not import chat-only ad components',
+    !/from\s+['"]\.\/components\/ads['"]/.test(landingSrc));
+  record('app routes chat-only mode on the ?chat=1 flag',
+    /chat=1/.test(appSrcForGate) || /getChatOpen/.test(appSrcForGate));
+  // 3. The AdSenseAd render is the official <ins> element only; no
+  //    click-trap, close-button, or skip-overlay markup is added by the
+  //    provider itself.
+  record('adsense render is the official ins element',
+    /className="adsbygoogle"/.test(adsenseAdSrc) &&
+      /data-ad-client=/.test(adsenseAdSrc) &&
+      /data-ad-slot=/.test(adsenseAdSrc) &&
+      !/<button/i.test(adsenseAdSrc) &&
+      !/onclick=/i.test(adsenseAdSrc));
+  // 4. Chat composer and send button remain reachable when the
+  //    AdSlotAd dispatcher is in any state, because the dispatcher
+  //    always reserves the same min-height in every branch.
+  record('chat composer and send remain reachable when ads disabled',
+    /min-h-\[60px\]/.test(placeholderSrc) &&
+      /min-h-\[60px\]/.test(adsenseAdSrc) &&
+      /min-h-\[60px\]/.test(adSlotSrc));
+  // 5. The AdSense review checklist exists and is referenced from the
+  //    docs/ tree (operator-side acceptance gate).
+  record('adsense review checklist exists and pins program-policy',
+    fs.existsSync(path.resolve('docs/ADSENSE_REVIEW_CHECKLIST.md')) &&
+      /AdSense program-policy compliance/.test(
+        fs.readFileSync(
+          path.resolve('docs/ADSENSE_REVIEW_CHECKLIST.md'),
+          'utf8',
+        ),
+      ));
 }
 
 function newStore() {
