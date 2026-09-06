@@ -1,10 +1,7 @@
-import { ModelSelector } from '../common/ModelSelector';
 import { classNames } from '../../lib/format';
 
 interface Props {
   onSuggest: (text: string) => void;
-  model: string;
-  onModelChange: (id: string) => void;
 }
 
 const SUGGESTIONS: { title: string; text: string }[] = [
@@ -14,7 +11,7 @@ const SUGGESTIONS: { title: string; text: string }[] = [
   { title: 'Brainstorm', text: 'Give me 5 creative product names for a free public AI chat site.' },
 ];
 
-export function EmptyState({ onSuggest, model, onModelChange }: Props) {
+export function EmptyState({ onSuggest }: Props) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-10 text-center">
       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500 text-lg font-bold text-white shadow-md">
@@ -27,10 +24,6 @@ export function EmptyState({ onSuggest, model, onModelChange }: Props) {
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           Free public AI chat. No account needed.
         </p>
-      </div>
-
-      <div className="w-full max-w-xs">
-        <ModelSelector value={model} onChange={onModelChange} />
       </div>
 
       <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">

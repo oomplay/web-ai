@@ -51,7 +51,7 @@ export function ChatWindow({
     <div className="flex h-full min-h-0 flex-col">
       <div className="thin-scroll flex-1 overflow-y-auto">
         {!active || active.messages.length === 0 ? (
-          <EmptyState onSuggest={onSend} model={model} onModelChange={onModelChange} />
+          <EmptyState onSuggest={onSend} />
         ) : (
           <>
             <div className="mx-auto w-full max-w-3xl px-3 pt-4 sm:px-6">
@@ -75,11 +75,9 @@ export function ChatWindow({
         onSend={onSend}
         onStop={onStop}
         isStreaming={isStreaming}
-        placeholder={
-          active
-            ? 'Message Kiwi AI…   (Enter to send, Shift+Enter for newline)'
-            : 'Type something to start a new chat…'
-        }
+        model={model}
+        onModelChange={onModelChange}
+        placeholder="Ask…"
       />
       {/* Bottom ad panel: single rotating placement (ad ↔ disclosure
         filler) attached below the composer (no gap, shared rounding —

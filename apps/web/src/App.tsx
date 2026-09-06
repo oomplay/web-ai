@@ -238,7 +238,7 @@ export default function App() {
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar"
               className={classNames(
-                'inline-flex h-9 w-9 items-center justify-center rounded-md border',
+                'theme-fade inline-flex h-9 w-9 items-center justify-center rounded-md border',
                 'border-zinc-300 text-zinc-700 hover:bg-zinc-100 md:hidden',
                 'dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800',
               )}
@@ -256,9 +256,10 @@ export default function App() {
                 <path d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div className="text-sm font-semibold tracking-tight">Kiwi AI</div>
-            <span className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:inline">
-              · Free public chat
+            {/* Brand lives in the sidebar (reference design); the header
+              shows only the muted page label. */}
+            <span className="flex-1 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              Free public chat
             </span>
           </div>
           <div className="flex items-center gap-2">

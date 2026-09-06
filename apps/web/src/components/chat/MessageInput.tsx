@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { classNames } from '../../lib/format';
+import { ModelSelector } from '../common/ModelSelector';
 
 interface Props {
   onSend: (text: string) => void;
@@ -7,6 +8,8 @@ interface Props {
   isStreaming: boolean;
   disabled?: boolean;
   placeholder?: string;
+  model: string;
+  onModelChange: (id: string) => void;
 }
 
 export function MessageInput({
@@ -15,6 +18,8 @@ export function MessageInput({
   isStreaming,
   disabled,
   placeholder,
+  model,
+  onModelChange,
 }: Props) {
   const [text, setText] = useState('');
   const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -84,9 +89,7 @@ export function MessageInput({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           disabled={disabled}
-          placeholder={
-            placeholder ?? 'Message Kiwi AI…   (Enter to send, Shift+Enter for newline)'
-          }
+          placeholder={placeholder ?? 'Ask…'}
           className={classNames(
             'max-h-[180px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm',
             'text-zinc-900 placeholder:text-zinc-400 focus:outline-none',
@@ -95,6 +98,11 @@ export function MessageInput({
             'transition-opacity duration-150',
           )}
         />
+        {/* Inline compact model selector (reference design): model name +
+          chevron, borderless, sits right of the input inside the composer. */}
+        <div className="mb-1.5 hidden shrink-0 sm:block">
+          <ModelSelector value={model} onChange={onModelChange} compact />
+        </div>
         {isStreaming ? (
           <button
             type="button"
