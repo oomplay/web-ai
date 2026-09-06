@@ -9,11 +9,22 @@
 /* ------------------------------------------------------------------
  * Motion language
  *
- * One shared vocabulary for the app's micro-interactions: short,
- * ease-out, compositor-friendly (opacity/transform only). Mounted
- * elements opt in with `animate-rise`; live state changes use the
- * `theme-fade`/`ui-transition` utilities below. Everything respects
- * prefers-reduced-motion globally via the media query at the bottom.
+ * Three small, explicit utilities — everything is opt-in:
+ *  - .animate-rise : one-shot entrance (opacity + 2px translate),
+ *                    180ms, for elements mounting into the page
+ *  - .animate-fade : one-shot opacity fade, 250ms, for content that
+ *                    swaps inside a fixed-size box or appears in place
+ *  - .theme-fade   : color-only transitions (background, border,
+ *                    text, fill, stroke, box-shadow, opacity) for
+ *                    hover/focus/theme state changes. These are paint
+ *                    properties (not compositor-only); durations stay
+ *                    short so the recolor feels instant but smooth.
+ *
+ * Geometry (heights) must not snap in stateful UI: components that
+ * change size transition their layout explicitly (see the FAQ grid
+ * rows pattern in Landing.tsx).
+ *
+ * All three respect prefers-reduced-motion via the media query below.
  * ------------------------------------------------------------------ */
 @keyframes rise-in {
   from {
@@ -60,8 +71,40 @@
     box-shadow 180ms ease-out;
 }
 
+/* FAQ (and similar) expand/collapse geometry: the body sits in a grid
+ * whose single row transitions 0fr <-> 1fr (set inline by the
+ * component from its open state), so the container height interpolates
+ * instead of snapping. The inner `min-h-0 overflow-hidden` wrapper is
+ * what makes the 0fr row actually clamp its content. 250ms ease-out —
+ * the project's standard duration for larger state changes. */
+.faq-body-wrap {
+  transition: grid-template-rows 250ms ease-out;
+}
+
+/* Card entrance choreography (Landing explainer group): before the
+ * group intersects the viewport the shared rise-in animation is held
+ * paused in its `from` state; on first intersection the group flips
+ * to .entrance-run and the stagger plays once via nth-child delays.
+ * Reduced motion drops the pending state entirely (cards are
+ * immediately visible), see the media query below. */
+.entrance-pending .animate-rise {
+  animation-play-state: paused;
+  opacity: 0;
+}
+.entrance-run .animate-rise:nth-child(1) {
+  animation-delay: 0ms;
+}
+.entrance-run .animate-rise:nth-child(2) {
+  animation-delay: 60ms;
+}
+.entrance-run .animate-rise:nth-child(3) {
+  animation-delay: 120ms;
+}
+
 /* Global reduced-motion kill switch: any animation or transition
- * becomes an instant state change. */
+ * becomes an instant state change. Cards skip the pending state so
+ * content is never hidden waiting for an entrance; FAQ geometry gets
+ * `transition: none` so rows snap open/closed instantly. */
 @media (prefers-reduced-motion: reduce) {
   .animate-rise,
   .animate-fade {
@@ -70,6 +113,13 @@
   .theme-fade,
   .theme-fade * {
     transition-duration: 0s !important;
+  }
+  .faq-body-wrap {
+    transition: none;
+  }
+  .entrance-pending .animate-rise {
+    animation: none;
+    opacity: 1;
   }
   * {
     scroll-behavior: auto !important;
@@ -105,30 +155,6 @@ html.dark .hljs {
 }
 html.dark .thin-scroll::-webkit-scrollbar-thumb {
   @apply bg-zinc-700;
-}
-
-/* Smooth theme switch: colors ease instead of snapping. Only color-ish
- * properties are transitioned (never layout), so the swap is a gentle
- * recolor rather than a "fade the whole website" effect. Reduced-motion
- * users get an instant switch via the global media rule above. */
-@media (prefers-reduced-motion: no-preference) {
-  body,
-  body * {
-    transition-property:
-      background-color,
-      border-color,
-      color,
-      fill,
-      stroke,
-      box-shadow;
-    transition-duration: 160ms;
-    transition-timing-function: ease-out;
-  }
-  /* Streaming cursor keeps its pulse (opacity keyframes, compositor
-   * only); the blanket color transition above must not slow it. */
-  .animate-pulse {
-    transition-property: none;
-  }
 }
 
 /* Prose-like styles for markdown bubbles */

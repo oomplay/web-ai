@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Footer } from '../common/Footer';
 
 interface Props {
@@ -111,13 +110,11 @@ function Explainer() {
       >
         How it works
       </h2>
-      <ul className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {cards.map((c, i) => (
+      <CardGroup>
+        {cards.map((c) => (
           <li
             key={c.title}
             className="theme-fade animate-rise rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
-            // Stagger the three cards slightly for a deliberate entrance.
-            style={{ animationDelay: `${i * 60}ms` }}
           >
             <h3 className="text-sm font-semibold">{c.title}</h3>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
@@ -125,8 +122,78 @@ function Explainer() {
             </p>
           </li>
         ))}
-      </ul>
+      </CardGroup>
     </section>
+  );
+}
+
+/**
+ * Wraps the explainer cards and plays their entrance stagger once, the
+ * first time the group enters the viewport. Animating on mount wasted
+ * the stagger whenever the cards started below the fold.
+ *
+ * Mechanism: the wrapper observes itself with a single
+ * IntersectionObserver (not one per card). Before intersection, cards
+ * hold the `from` state of rise-in via `animation-play-state: paused`
+ * (class `entrance-pending`, opacity 0 — no layout shift either way).
+ * On first intersection it flips to `entrance-run`, unpausing the
+ * shared animation; each card's stagger comes from its `--stagger-i`
+ * index as an animation-delay. One-shot: the observer disconnects
+ * after the flip, so scroll in/out never replays it.
+ *
+ * Reduced motion: `.animate-rise` is already `animation: none` under
+ * `prefers-reduced-motion: reduce`, and the pending class keeps its
+ * opacity at 1 in that case — see the media query in index.css.
+ */
+function CardGroup({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLUListElement | null>(null);
+  const [entered, setEntered] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || entered) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setEntered(true); // very old browser: skip the choreography
+      return;
+    }
+    let settled = false;
+    // Failsafe: if the observer never fires (headless webviews and some
+    // embedded renderers skip IO callbacks entirely), reveal the cards
+    // anyway. Users must never be left with invisible content.
+    const failsafe = window.setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        setEntered(true);
+        io.disconnect();
+      }
+    }, 2500);
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(failsafe);
+          setEntered(true);
+          io.disconnect();
+        }
+      },
+      // Fire as soon as any part of the group is visible.
+      { threshold: 0.1 },
+    );
+    io.observe(el);
+    return () => {
+      clearTimeout(failsafe);
+      io.disconnect();
+    };
+  }, [entered]);
+
+  return (
+    <ul
+      ref={ref}
+      className={`mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3 ${entered ? 'entrance-run' : 'entrance-pending'}`}
+    >
+      {children}
+    </ul>
   );
 }
 
@@ -217,24 +284,45 @@ function Faq() {
 function FaqEntry({ item }: { item: FaqItem }) {
   const [open, setOpen] = useState(false);
   return (
-    <details
-      open={open}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+    <div
       className="theme-fade group rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium sm:text-base">
+      {/*
+        Native <details> is replaced by controlled state so the geometry
+        can interpolate: the body lives in a grid wrapper whose row
+        animates 0fr -> 1fr (see `.faq-body-wrap` in index.css). Same
+        semantics as before — summary stays the keyboard/click toggle,
+        `aria-expanded` mirrors the state.
+      */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium sm:text-base"
+      >
         <span>{item.q}</span>
         <span
           aria-hidden
           // Chevron rotates smoothly (transform is compositor-only).
-          className="select-none text-zinc-400 transition-transform duration-200 ease-out group-open:rotate-180 motion-reduce:transition-none"
+          className="select-none text-zinc-400 transition-transform duration-200 ease-out data-[open=true]:rotate-180 motion-reduce:transition-none"
+          data-open={open}
         >
           ▾
         </span>
-      </summary>
-      <p className="animate-fade mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-        {item.a}
-      </p>
-    </details>
+      </button>
+      <div
+        aria-hidden={!open}
+        className="faq-body-wrap grid motion-reduce:transition-none"
+        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <p
+            className={`mt-2 text-sm text-zinc-600 dark:text-zinc-300 ${open ? 'animate-fade' : ''}`}
+          >
+            {item.a}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
