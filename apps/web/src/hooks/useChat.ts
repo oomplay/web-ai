@@ -120,12 +120,17 @@ export function useChat(args: UseChatArgs): UseChatResult {
         // Stream ended without an explicit 'done' or 'error' event. Make sure
         // the user is not left looking at a half-finished message: finalize
         // what we have and surface a soft warning so they know it was cut.
-        if (accAnswer) {
-          a.onUpdateLastMessage(conv.id, assistantMsg.id, {
-            thinking: accThinking,
-            content: accAnswer + '\n\n_⚠️ Stream ended unexpectedly._',
-          });
-        }
+        // This includes the thinking-only case (Stop pressed before any
+        // answer text arrived): without a visible note here, the bubble
+        // would finalize with empty content and render as blank space
+        // below the ThinkingPanel.
+        const suffix = accAnswer
+          ? '\n\n_⚠️ Stream ended unexpectedly._'
+          : '_⚠️ Response stopped before an answer was generated._';
+        a.onUpdateLastMessage(conv.id, assistantMsg.id, {
+          thinking: accThinking,
+          content: accAnswer + suffix,
+        });
       }
       abortRef.current = null;
       setIsStreaming(false);

@@ -77,22 +77,39 @@ export default function App() {
   //       model belongs to (mock vs ai-gateway) so the "Powered by …"
   //       line is honest.
   useEffect(() => {
+    let cancelled = false;
+    let retryInterval: ReturnType<typeof setInterval> | undefined;
     const ac = new AbortController();
-    fetchModels(ac.signal)
-      .then((m) => {
-        if (ac.signal.aborted) return;
-        setModels(m);
-        if (model === '' && m.length > 0) {
-          const first = m[0];
-          if (first) setModel(first.id);
-        }
-      })
-      .catch((e: Error) => {
-        if (e.name === 'AbortError' || ac.signal.aborted) return;
-        // eslint-disable-next-line no-console
-        console.warn('[web-ai] initial model fetch failed', e);
-      });
-    return () => ac.abort();
+    const tryFetch = () => {
+      fetchModels(ac.signal)
+        .then((m) => {
+          if (cancelled || ac.signal.aborted) return;
+          setModels(m);
+          // Stop the retry loop once the list is loaded.
+          if (retryInterval) clearInterval(retryInterval);
+          if (model === '' && m.length > 0) {
+            const first = m[0];
+            if (first) setModel(first.id);
+          }
+        })
+        .catch((e: Error) => {
+          if (e.name === 'AbortError' || ac.signal.aborted || cancelled) return;
+          // eslint-disable-next-line no-console
+          console.warn('[web-ai] model fetch failed; will retry', e);
+        });
+    };
+    tryFetch();
+    // The model list is static for the lifetime of the page, but a
+    // transient backend blip at page-load time must not degrade the
+    // whole session (the composer footer loses its provider label).
+    // While the list has not loaded, keep retrying gently; the interval
+    // is cleared on the first successful fetch or on unmount.
+    retryInterval = setInterval(tryFetch, 15_000);
+    return () => {
+      cancelled = true;
+      if (retryInterval) clearInterval(retryInterval);
+      ac.abort();
+    };
     // We intentionally run this only once. The model list is static for
     // the lifetime of the page; we do not want to abort and re-fetch
     // on every `model` change.
@@ -227,11 +244,22 @@ export default function App() {
                 'dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800',
               )}
             >
-              ?
+              {/* Hamburger icon (inline SVG; the project has no icon library). */}
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
             </button>
             <div className="text-sm font-semibold tracking-tight">Web AI</div>
             <span className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:inline">
-              ? Free public chat
+              · Free public chat
             </span>
           </div>
           <div className="flex items-center gap-2">

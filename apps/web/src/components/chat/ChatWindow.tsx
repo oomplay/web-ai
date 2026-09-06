@@ -36,6 +36,18 @@ export function ChatWindow({
     return undefined;
   }, [active]);
 
+  // The "real" streaming message id only applies while a stream is in
+  // flight. The `lastAssistantId` fallback exists purely for the case
+  // where the assistant bubble exists but has no content yet (e.g. the
+  // model is still emitting `thinking` deltas) — it must NEVER mark a
+  // finished message as streaming, otherwise the ThinkingPanel keeps
+  // saying "Thinking…" and the typing cursor blinks forever after the
+  // stream has ended.
+  const effectiveStreamingMessageId = useMemo(() => {
+    if (!isStreaming) return undefined;
+    return streamingMessageId ?? lastAssistantId;
+  }, [isStreaming, streamingMessageId, lastAssistantId]);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="thin-scroll flex-1 overflow-y-auto">
@@ -51,14 +63,14 @@ export function ChatWindow({
                   </div>
                   <h2 className="truncate text-base font-semibold">{active.title}</h2>
                 </div>
-                <div className="w-44">
+                <div className="min-w-44 max-w-72">
                   <ModelSelector value={model} onChange={onModelChange} />
                 </div>
               </div>
             </div>
             <MessageList
               messages={active.messages}
-              streamingMessageId={streamingMessageId ?? lastAssistantId}
+              streamingMessageId={effectiveStreamingMessageId}
             />
             <div className="mx-auto w-full max-w-3xl px-3 sm:px-6">
               <BottomBanner />

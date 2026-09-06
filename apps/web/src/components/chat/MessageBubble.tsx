@@ -25,34 +25,41 @@ export function MessageBubble({ message, isStreaming }: Props) {
             : 'bg-white text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800',
         )}
       >
-        <div className={classNames('md', isUser && 'text-white')}>
-          {isUser ? (
-            <pre className="whitespace-pre-wrap break-words font-sans">
-              {message.content}
-            </pre>
-          ) : (
-            <>
-              {/*
-                Thinking panel: rendered only for assistant messages that
-                actually have a thinking prefix. When absent, the bubble
-                looks exactly like before, so providers that do not
-                separate reasoning from the answer (e.g. the mock) are
-                unaffected.
-              */}
-              {message.thinking ? (
-                <ThinkingPanel text={message.thinking} isStreaming={isStreaming} />
-              ) : null}
-              {message.content ? (
-                <Markdown>{message.content}</Markdown>
-              ) : isStreaming ? (
-                <span className="text-zinc-400">…</span>
-              ) : null}
-            </>
-          )}
-          {isStreaming && !isUser && (
-            <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-current align-baseline opacity-70" />
-          )}
-        </div>
+        {/*
+          User messages are plain text, NOT markdown, so they deliberately
+          render outside the `.md` wrapper. The global `.md pre` rule in
+          index.css paints every `<pre>` with the code-block background,
+          which used to bleed into the user bubble (white text on a
+          near-white box in light mode / a dark inset box in dark mode).
+          Keeping the user `<pre>` out of `.md` scope fixes the contrast
+          without touching the assistant markdown styles.
+        */}
+        {isUser ? (
+          <pre className="whitespace-pre-wrap break-words font-sans">
+            {message.content}
+          </pre>
+        ) : (
+          <div className="md">
+            {/*
+              Thinking panel: rendered only for assistant messages that
+              actually have a thinking prefix. When absent, the bubble
+              looks exactly like before, so providers that do not
+              separate reasoning from the answer (e.g. the mock) are
+              unaffected.
+            */}
+            {message.thinking ? (
+              <ThinkingPanel text={message.thinking} isStreaming={isStreaming} />
+            ) : null}
+            {message.content ? (
+              <Markdown>{message.content}</Markdown>
+            ) : isStreaming ? (
+              <span className="text-zinc-400">…</span>
+            ) : null}
+          </div>
+        )}
+        {isStreaming && !isUser && (
+          <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-current align-baseline opacity-70" />
+        )}
       </div>
     </div>
   );
