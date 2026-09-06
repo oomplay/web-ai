@@ -14,15 +14,16 @@ import type { AdSlotVariant } from '../../lib/ads';
  * panel. No network calls, no storage access, no third-party requests.
  */
 
-/** Card copy for the bottom placement. The destination is the
- * landing page's "How it works" section — a real, in-app target (the
- * path prefix makes the link work from the chat view too, where the
- * landing section is not mounted; a bare #hash would be a no-op
- * there). No external tracking. */
+/** Card copy for the bottom placement. Emphasizes anonymity — the app
+ * stores nothing server-side (chats live in the browser only). The
+ * destination is the landing page's "How it works" section — a real,
+ * in-app target (the path prefix makes the link work from the chat
+ * view too, where the landing section is not mounted; a bare #hash
+ * would be a no-op there). No external tracking. */
 const CARD_COPY: Record<AdSlotVariant, { title: string; body: string }> = {
   bottom: {
-    title: 'Your chats stay on this device.',
-    body: 'History lives in your browser only. Start a new chat anytime.',
+    title: 'Chat anonymously — we store nothing.',
+    body: 'No accounts, no server-side history. Your chats never leave your browser.',
   },
 };
 
