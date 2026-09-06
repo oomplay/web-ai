@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useState } from 'react';
 import { Footer } from '../common/Footer';
 
@@ -17,6 +18,24 @@ interface Props {
  * remain in the chat tree, not the landing tree.
  */
 export function Landing({ onStartChat }: Props) {
+  // Deep-link support: arriving at /#how-it-works (from the ad card's
+  // "How it works" CTA or an external link) must scroll to the section
+  // once it is actually rendered — at first paint the browser's own
+  // hash scroll fires before React mounts anything, so it silently
+  // misses the not-yet-existing element.
+  useEffect(() => {
+    if (window.location.hash !== '#how-it-works') return;
+    // Double rAF: one frame for React to commit the DOM, one for the
+    // browser to lay it out.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        document
+          .getElementById('how-it-works')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }),
+    );
+  }, []);
+
   return (
     <div className="thin-scroll min-h-screen w-full overflow-y-auto bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <main className="mx-auto w-full max-w-3xl px-4 pt-10 sm:px-6 sm:pt-16">

@@ -14,9 +14,11 @@ import type { AdSlotVariant } from '../../lib/ads';
  * panel. No network calls, no storage access, no third-party requests.
  */
 
-/** Card copy for the bottom placement. The destination URL is the
- * deploy's own landing anchor (real, in-app target — no external
- * tracking). */
+/** Card copy for the bottom placement. The destination is the
+ * landing page's "How it works" section — a real, in-app target (the
+ * path prefix makes the link work from the chat view too, where the
+ * landing section is not mounted; a bare #hash would be a no-op
+ * there). No external tracking. */
 const CARD_COPY: Record<AdSlotVariant, { title: string; body: string }> = {
   bottom: {
     title: 'Your chats stay on this device.',
@@ -68,7 +70,7 @@ export function PlaceholderAd({
           Ad
         </span>
         <a
-          href="#how-it-works"
+          href="/#how-it-works"
           className="hidden items-center gap-0.5 text-xs font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900 sm:inline-flex dark:text-zinc-400 dark:hover:text-zinc-200"
         >
           How it works
