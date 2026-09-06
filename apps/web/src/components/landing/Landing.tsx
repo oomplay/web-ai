@@ -69,13 +69,13 @@ function Hero({ onStartChat }: Props) {
         <button
           type="button"
           onClick={onStartChat}
-          className="inline-flex items-center rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="theme-fade inline-flex items-center rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
         >
           Start chatting
         </button>
         <a
           href="#how-it-works"
-          className="inline-flex items-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          className="theme-fade inline-flex items-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
         >
           How it works
         </a>
@@ -112,10 +112,12 @@ function Explainer() {
         How it works
       </h2>
       <ul className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {cards.map((c) => (
+        {cards.map((c, i) => (
           <li
             key={c.title}
-            className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
+            className="theme-fade animate-rise rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
+            // Stagger the three cards slightly for a deliberate entrance.
+            style={{ animationDelay: `${i * 60}ms` }}
           >
             <h3 className="text-sm font-semibold">{c.title}</h3>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
@@ -218,18 +220,19 @@ function FaqEntry({ item }: { item: FaqItem }) {
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="group rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+      className="theme-fade group rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium sm:text-base">
         <span>{item.q}</span>
         <span
           aria-hidden
-          className="select-none text-zinc-400 group-open:rotate-180"
+          // Chevron rotates smoothly (transform is compositor-only).
+          className="select-none text-zinc-400 transition-transform duration-200 ease-out group-open:rotate-180 motion-reduce:transition-none"
         >
           ▾
         </span>
       </summary>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+      <p className="animate-fade mt-2 text-sm text-zinc-600 dark:text-zinc-300">
         {item.a}
       </p>
     </details>

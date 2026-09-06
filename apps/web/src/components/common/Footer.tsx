@@ -17,19 +17,19 @@ export function Footer() {
         <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1">
           <a
             href="/privacy"
-            className="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200"
+            className="theme-fade rounded hover:text-zinc-700 hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:hover:text-zinc-200"
           >
             Privacy
           </a>
           <a
             href="/terms"
-            className="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200"
+            className="theme-fade rounded hover:text-zinc-700 hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:hover:text-zinc-200"
           >
             Terms
           </a>
           <a
             href="mailto:hello@kiwicraft.in"
-            className="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200"
+            className="theme-fade rounded hover:text-zinc-700 hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:hover:text-zinc-200"
           >
             Contact
           </a>
