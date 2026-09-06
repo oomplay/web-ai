@@ -1,6 +1,6 @@
 /**
  * Central ad-provider resolution — the single source of truth for
- * which ad backend renders inside the <AdSlot> containers.
+ * which ad backend renders inside the bottom panel (BottomAdPanel).
  *
  * Milestone 3.2 introduces the dispatch without shipping AdSense
  * (that is milestone 3.3). Constraints from PHASE_3_PLAN.md §2.3:
@@ -13,7 +13,8 @@
 
 export type AdProviderKind = 'placeholder' | 'adsense' | 'none';
 
-export type AdSlotVariant = 'top' | 'bottom' | 'inline';
+/** The only ad placement in the product: the bottom panel. */
+export type AdSlotVariant = 'bottom';
 
 const ALLOWED_KINDS: readonly AdProviderKind[] = ['placeholder', 'adsense', 'none'];
 
@@ -67,15 +68,13 @@ export function getAdsenseClientId(): string {
 }
 
 const SLOT_ENV_KEYS: Record<AdSlotVariant, string> = {
-  top: 'VITE_ADSENSE_SLOT_TOP',
   bottom: 'VITE_ADSENSE_SLOT_BOTTOM',
-  inline: 'VITE_ADSENSE_SLOT_INLINE',
 };
 
 /**
- * The per-variant AdSense slot id. Empty means "not configured for
- * this variant" — callers must render the placeholder for that slot
- * only (PHASE_3_PLAN.md §2.4).
+ * The AdSense slot id for the bottom placement. Empty means "not
+ * configured" — callers must render the placeholder
+ * (PHASE_3_PLAN.md §2.4).
  */
 export function getAdsenseSlotId(variant: AdSlotVariant): string {
   const key = SLOT_ENV_KEYS[variant];

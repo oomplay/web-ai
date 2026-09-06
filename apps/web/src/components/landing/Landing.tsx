@@ -43,7 +43,7 @@ function Hero({ onStartChat }: Props) {
         Free AI chat. No login, no signup, no subscription.
       </h1>
       <p className="max-w-2xl text-base text-zinc-600 sm:text-lg dark:text-zinc-300">
-        Web AI is a small, ad-funded public chat. Pick a model, ask
+        Kiwi AI is a small, ad-funded public chat. Pick a model, ask
         anything, and start a conversation in one click.
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -156,7 +156,7 @@ const FAQ_ITEMS: FaqItem[] = [
   },
   {
     q: 'Why am I rate-limited?',
-    a: 'Web AI is anonymous and public. Per-IP rate limits and concurrent-stream caps are the only thing standing between the service and quota exhaustion. Limits are conservative; if you hit them, slow down and try again shortly.',
+    a: 'Kiwi AI is anonymous and public. Per-IP rate limits and concurrent-stream caps are the only thing standing between the service and quota exhaustion. Limits are conservative; if you hit them, slow down and try again shortly.',
   },
   {
     q: 'How do I report abuse?',

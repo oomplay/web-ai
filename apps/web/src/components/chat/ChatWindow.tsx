@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { EmptyState } from './EmptyState';
-import { BottomBanner } from '../ads';
+import { BottomAdPanel } from '../ads';
 import type { Conversation } from '../../types/chat';
 import { ModelSelector } from '../common/ModelSelector';
 
@@ -69,9 +69,6 @@ export function ChatWindow({
               messages={active.messages}
               streamingMessageId={effectiveStreamingMessageId}
             />
-            <div className="mx-auto w-full max-w-3xl px-3 sm:px-6">
-              <BottomBanner />
-            </div>
           </>
         )}
       </div>
@@ -81,11 +78,17 @@ export function ChatWindow({
         isStreaming={isStreaming}
         placeholder={
           active
-            ? 'Message Web AI…   (Enter to send, Shift+Enter for newline)'
+            ? 'Message Kiwi AI…   (Enter to send, Shift+Enter for newline)'
             : 'Type something to start a new chat…'
         }
-        providerName={providerName}
       />
+      {/* Bottom ad panel: single rotating placement (ad ↔ disclosure
+        filler) attached below the composer (no gap, shared rounding —
+        they read as one panel). Replaces the old top/inline slots and
+        the floating footer disclosure. */}
+      <div className="mx-auto w-full max-w-3xl px-3 pb-3 sm:px-6 sm:pb-4">
+        <BottomAdPanel providerName={providerName} />
+      </div>
       {/* Composer status bar: app badge + live model selector on the left.
         Model switching is a real, working control — everything shown here
         is backed by existing functionality. */}
@@ -95,10 +98,10 @@ export function ChatWindow({
             aria-hidden
             className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-brand-500 text-[9px] font-bold text-white"
           >
-            W
+            K
           </span>
           <span className="shrink-0 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-            Web AI
+            Kiwi AI
           </span>
           <ModelSelector value={model} onChange={onModelChange} compact />
         </div>

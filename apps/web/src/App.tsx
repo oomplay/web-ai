@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sidebar } from './components/common/Sidebar';
 import { ThemeToggle } from './components/common/ThemeToggle';
-import { TopBanner } from './components/ads';
 import { ChatWindow } from './components/chat/ChatWindow';
 import { Landing } from './components/landing/Landing';
 import { useConversations } from './hooks/useConversations';
@@ -257,7 +256,7 @@ export default function App() {
                 <path d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div className="text-sm font-semibold tracking-tight">Web AI</div>
+            <div className="text-sm font-semibold tracking-tight">Kiwi AI</div>
             <span className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:inline">
               · Free public chat
             </span>
@@ -280,8 +279,6 @@ export default function App() {
             <ThemeToggle />
           </div>
         </header>
-
-        <TopBanner className="mx-auto w-full max-w-3xl px-3 sm:px-6" />
 
         {error && (
           <div

@@ -1,7 +1,7 @@
 /**
  * Site footer shown on the landing page.
  *
- * Renders a small "© year Web AI" line plus links to the legal pages.
+ * Renders a small "© year Kiwi AI" line plus links to the legal pages.
  * No social-share buttons (they leak referrer headers and add
  * third-party requests; see PHASE_3_PLAN.md §3.2).
  */
@@ -13,7 +13,7 @@ export function Footer() {
       aria-label="Site footer"
     >
       <div className="flex flex-col items-start gap-2 border-t border-zinc-200 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800">
-        <p>© {year} Web AI. Ad-funded, no subscription.</p>
+        <p>© {year} Kiwi AI. Ad-funded, no subscription.</p>
         <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1">
           <a
             href="/privacy"

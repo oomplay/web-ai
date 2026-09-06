@@ -49,9 +49,9 @@ export function Sidebar({
       <div className="flex items-center justify-between gap-2 border-b border-zinc-200 p-3 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <div className="grid h-7 w-7 place-items-center rounded-md bg-brand-500 text-sm font-bold text-white">
-            W
+            K
           </div>
-          <div className="text-sm font-semibold tracking-tight">Web AI</div>
+          <div className="text-sm font-semibold tracking-tight">Kiwi AI</div>
         </div>
         {onClose && (
           <button

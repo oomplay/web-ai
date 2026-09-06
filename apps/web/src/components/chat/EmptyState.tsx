@@ -18,7 +18,7 @@ export function EmptyState({ onSuggest, model, onModelChange }: Props) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-10 text-center">
       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500 text-lg font-bold text-white shadow-md">
-        W
+        K
       </div>
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">

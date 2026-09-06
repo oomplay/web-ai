@@ -3,32 +3,24 @@ import type { AdSlotVariant } from '../../lib/ads';
 /**
  * The default provider render: a labelled house-ad card.
  *
- * Restyled (from the original flat dashed box) into a rounded card in
- * the same visual language as the rest of the app: small icon badge on
- * the top-left, a bold title, a one-line description, a faint "Ad"
- * label in the top-right corner, and an underlined destination link
- * with an arrow in the bottom-right corner.
+ * Visual language: small icon badge on the top-left, a bold title, a
+ * one-line description, a faint "Ad" label in the top-right corner,
+ * and an underlined destination link with an arrow in the bottom-right
+ * corner.
  *
- * Extracted verbatim from the original inline AdSlot JSX (flat dashed
- * box) in Phase 2 and re-skinned in the UI polish pass; the props and
- * the `data-ad-slot` contract are unchanged. No network calls, no
- * storage access, no third-party requests.
+ * The card is content-only: the border/background/rounding surface is
+ * supplied by the BottomAdPanel wrapper it renders inside, so the card
+ * itself stays transparent and seamless in the attached composer
+ * panel. No network calls, no storage access, no third-party requests.
  */
 
-/** Per-variant card copy. The destination URL is the deploy's own
- * landing anchor (real, in-app target — no external tracking). */
+/** Card copy for the bottom placement. The destination URL is the
+ * deploy's own landing anchor (real, in-app target — no external
+ * tracking). */
 const CARD_COPY: Record<AdSlotVariant, { title: string; body: string }> = {
-  top: {
-    title: 'Free AI chat, funded by ads.',
-    body: 'No account, no subscription — ads keep this service free.',
-  },
   bottom: {
     title: 'Your chats stay on this device.',
     body: 'History lives in your browser only. Start a new chat anytime.',
-  },
-  inline: {
-    title: 'Ad space available.',
-    body: 'This slot supports the free tier of Web AI.',
   },
 };
 
@@ -47,9 +39,8 @@ export function PlaceholderAd({
       aria-label={label}
       role="complementary"
       className={[
-        'my-2 flex w-full items-stretch justify-between gap-3 rounded-xl border px-4 py-3',
-        'border-zinc-200 bg-zinc-100/80',
-        'dark:border-zinc-800 dark:bg-zinc-900',
+        // Content-only card: surface styling comes from BottomAdPanel.
+        'flex w-full items-stretch justify-between gap-3 px-4 py-3',
         'min-h-[60px] select-none',
         className ?? '',
       ].join(' ')}
@@ -60,7 +51,7 @@ export function PlaceholderAd({
           aria-hidden
           className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-500 text-[11px] font-bold text-white"
         >
-          W
+          K
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
