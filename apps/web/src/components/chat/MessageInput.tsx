@@ -48,6 +48,8 @@ export function MessageInput({
     }
   };
 
+  const hasText = text.trim().length > 0;
+
   return (
     <form
       onSubmit={(e: FormEvent) => {
@@ -58,9 +60,9 @@ export function MessageInput({
     >
       <div
         className={classNames(
-          'flex items-end gap-2 rounded-2xl border bg-white p-2 shadow-sm',
-          'border-zinc-300 focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500',
-          'dark:border-zinc-700 dark:bg-zinc-900',
+          'flex items-end gap-2 rounded-2xl border bg-white p-2 shadow-none',
+          'border-zinc-200 focus-within:border-zinc-300',
+          'dark:border-zinc-800 dark:bg-zinc-900 dark:focus-within:border-zinc-700',
         )}
       >
         <textarea
@@ -76,29 +78,44 @@ export function MessageInput({
           className={classNames(
             'max-h-[180px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm',
             'text-zinc-900 placeholder:text-zinc-400 focus:outline-none',
-            'dark:text-zinc-100',
+            'dark:text-zinc-100 dark:placeholder:text-zinc-500',
           )}
         />
         {isStreaming ? (
           <button
             type="button"
             onClick={onStop}
-            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-lg bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            aria-label="Stop generating"
+            title="Stop generating"
           >
-            <span className="inline-block h-2 w-2 rounded-sm bg-current" />
-            Stop
+            <span className="inline-block h-2.5 w-2.5 rounded-[2px] bg-current" />
           </button>
         ) : (
           <button
             type="submit"
-            disabled={!text.trim() || disabled}
+            disabled={!hasText || disabled}
+            aria-label="Send message"
+            title="Send message"
             className={classNames(
-              'inline-flex h-9 shrink-0 items-center gap-1 rounded-lg px-3 text-sm font-medium',
-              'bg-brand-500 text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50',
+              'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors',
+              hasText && !disabled
+                ? 'bg-brand-500 text-white hover:bg-brand-600'
+                : 'cursor-default bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-600',
             )}
           >
-            Send
-            <span aria-hidden>➤</span>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
           </button>
         )}
       </div>

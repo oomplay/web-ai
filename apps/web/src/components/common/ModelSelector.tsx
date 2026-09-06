@@ -7,9 +7,14 @@ interface Props {
   value: string;
   onChange: (id: string) => void;
   className?: string;
+  /**
+   * Compact render for the composer status bar: no "Model" label,
+   * smaller select, natural width. Full labelled layout otherwise.
+   */
+  compact?: boolean;
 }
 
-export function ModelSelector({ value, onChange, className }: Props) {
+export function ModelSelector({ value, onChange, className, compact }: Props) {
   const [models, setModels] = useState<ModelInfo[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,16 +52,20 @@ export function ModelSelector({ value, onChange, className }: Props) {
   }, [load]);
 
   return (
-    <div className={classNames('flex flex-col gap-1', className)}>
-      <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Model</label>
+    <div className={classNames('flex flex-col gap-1', compact && 'gap-0', className)}>
+      {!compact && (
+        <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Model</label>
+      )}
       <div className="flex items-center gap-1">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={classNames(
-            'h-9 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900',
+            compact
+              ? 'h-7 max-w-56 cursor-pointer rounded-md border-transparent bg-transparent px-1 text-xs text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              : 'h-9 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900',
             'focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500',
-            'dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
+            !compact && 'dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
           )}
         >
           {err && <option value={value}>Error: {err}</option>}
@@ -72,7 +81,8 @@ export function ModelSelector({ value, onChange, className }: Props) {
             type="button"
             onClick={load}
             className={classNames(
-              'inline-flex h-9 shrink-0 items-center rounded-md border border-zinc-300 px-2 text-xs font-medium',
+              'inline-flex shrink-0 items-center rounded-md border border-zinc-300 px-2 text-xs font-medium',
+              compact ? 'h-7' : 'h-9',
               'text-zinc-700 hover:bg-zinc-100',
               'dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800',
             )}

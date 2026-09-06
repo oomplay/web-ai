@@ -281,7 +281,7 @@ export default function App() {
           </div>
         </header>
 
-        <TopBanner className="mx-3 mt-2 sm:mx-4" />
+        <TopBanner className="mx-auto w-full max-w-3xl px-3 sm:px-6" />
 
         {error && (
           <div

@@ -57,14 +57,11 @@ export function ChatWindow({
           <>
             <div className="mx-auto w-full max-w-3xl px-3 pt-4 sm:px-6">
               <div className="flex items-center justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                     Conversation
                   </div>
                   <h2 className="truncate text-base font-semibold">{active.title}</h2>
-                </div>
-                <div className="min-w-44 max-w-72">
-                  <ModelSelector value={model} onChange={onModelChange} />
                 </div>
               </div>
             </div>
@@ -89,6 +86,23 @@ export function ChatWindow({
         }
         providerName={providerName}
       />
+      {/* Composer status bar: app badge + live model selector on the left.
+        Model switching is a real, working control — everything shown here
+        is backed by existing functionality. */}
+      <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 pb-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            aria-hidden
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-brand-500 text-[9px] font-bold text-white"
+          >
+            W
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+            Web AI
+          </span>
+          <ModelSelector value={model} onChange={onModelChange} compact />
+        </div>
+      </div>
     </div>
   );
 }
