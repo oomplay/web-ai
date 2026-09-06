@@ -22,18 +22,19 @@ export interface KiwiCraftAIGatewayOptions {
   allowedHosts: string[];
   timeoutMs?: number;
   /**
-   * Enable thinking/answer split for the wire format. When `true`, the
-   * gateway's raw `content` stream is fed through `ThinkingSplitter`,
-   * which detects the `\n\s*\n\s*\n` boundary and yields the prefix as
-   * `kind: 'thinking'` and the suffix as `kind: 'answer'`. This is a
-   * per-deployment switch because it only matters for models that do
-   * not expose `reasoning_content` separately (e.g. the
-   * Lorbus/Qwen3.6-27B-int4-AutoRound model behind this gateway). When
-   * `false` (the default), every byte is yielded as `kind: 'answer'`,
-   * which is exactly what upstream models that already split reasoning
-   * want — and what the previous behaviour shipped.
+   * Per-model set of ids that need the heuristic ThinkingSplitter —
+   * i.e. models that concatenate their "thinking" prefix and the final
+   * answer into a single `content` stream separated by a
+   * `\n\s*\n\s*\n` boundary (e.g. Lorbus/Qwen3.6-27B-int4-AutoRound).
+   *
+   * Models NOT in this set get the default pass-through behaviour:
+   * every `content` byte is yielded as `kind: 'answer'`. Reasoning
+   * models that expose a separate `reasoning_content` field (e.g.
+   * nemotron-auto) do NOT need the splitter — the SSE parser maps that
+   * field to `kind: 'thinking'` directly, and running the heuristic
+   * splitter on their plain answer text would risk corrupting it.
    */
-  splitThinking?: boolean;
+  splitThinkingModels?: ReadonlySet<string>;
   /** Test-only: override the fetch implementation. */
   fetchImpl?: typeof fetch;
 }
@@ -66,7 +67,7 @@ export class KiwiCraftAIGatewayProvider implements Provider {
   private readonly allowedModels: Set<string>;
   private readonly modelLabels: Record<string, string>;
   private readonly timeoutMs: number;
-  private readonly splitThinking: boolean;
+  private readonly splitThinkingModels: ReadonlySet<string>;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: KiwiCraftAIGatewayOptions) {
@@ -77,7 +78,7 @@ export class KiwiCraftAIGatewayProvider implements Provider {
     this.allowedModels = new Set(opts.models);
     this.modelLabels = opts.modelLabels ?? {};
     this.timeoutMs = opts.timeoutMs ?? 30_000;
-    this.splitThinking = opts.splitThinking ?? false;
+    this.splitThinkingModels = opts.splitThinkingModels ?? new Set<string>();
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
@@ -95,12 +96,14 @@ export class KiwiCraftAIGatewayProvider implements Provider {
    * on upstream errors (the route maps them to a sanitised SSE error
    * event).
    *
-   * If `splitThinking` is enabled, the raw text stream is fed through
-   * a `ThinkingSplitter` so the thinking/answer boundary is detected
-   * and forwarded as separate `kind: 'thinking'` / `kind: 'answer'`
-   * parts. If it is disabled (the default), every byte is yielded as
-   * `kind: 'answer'` to preserve the historical single-stream wire
-   * format.
+   * If the requested model is in `splitThinkingModels`, the raw
+   * `content` stream is fed through a `ThinkingSplitter` so the
+   * thinking/answer boundary inside `content` is detected and forwarded
+   * as separate `kind: 'thinking'` / `kind: 'answer'` parts. Otherwise
+   * every `content` byte is yielded as `kind: 'answer'` — reasoning
+   * models that emit a separate `reasoning_content` field are already
+   * split by the SSE parser (which maps that field to
+   * `kind: 'thinking'`), so no heuristic is applied to their content.
    */
   async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<StreamPart> {
     if (!this.allowedModels.has(req.model)) {
@@ -150,7 +153,8 @@ export class KiwiCraftAIGatewayProvider implements Provider {
     cancelTimeout();
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
-    const splitter = this.splitThinking ? new ThinkingSplitter() : null;
+    const useSplitter = this.splitThinkingModels.has(req.model);
+    const splitter = useSplitter ? new ThinkingSplitter() : null;
     let pendingParts: StreamPart[] = [];
     let buffer = '';
     let upstreamErrored = false;
@@ -179,6 +183,10 @@ export class KiwiCraftAIGatewayProvider implements Provider {
           const ev: ParsedUpstreamEvent = parseUpstreamEvent(raw);
           if (ev.kind === 'delta') {
             pushText(ev.text);
+          } else if (ev.kind === 'thinking') {
+            // Reasoning-field models: the parser already separated the
+            // chain-of-thought; forward verbatim, no heuristics.
+            pendingParts.push({ kind: 'thinking', text: ev.text });
           } else if (ev.kind === 'error') {
             userError = safeProviderError({ kind: 'parse' });
             upstreamErrored = true;

@@ -36,10 +36,18 @@ export function parseUpstreamEvent(raw: string): ParsedUpstreamEvent {
   if (payload === '[DONE]') return { kind: 'done' };
   try {
     const obj = JSON.parse(payload) as {
-      choices?: Array<{ delta?: { content?: unknown } }>;
+      choices?: Array<{ delta?: { content?: unknown; reasoning_content?: unknown } }>;
       error?: { message?: unknown; type?: unknown };
     };
     const choice = obj.choices?.[0];
+    // Reasoning models expose their chain-of-thought in a separate
+    // `reasoning_content` field (emitted BEFORE `content`). Map it to
+    // the `thinking` kind so the ThinkingSplitter/ThinkingPanel path is
+    // driven by the field type, not by heuristics on the text itself.
+    const reasoning = choice?.delta?.reasoning_content;
+    if (typeof reasoning === 'string' && reasoning.length > 0) {
+      return { kind: 'thinking', text: reasoning };
+    }
     const delta = choice?.delta?.content;
     if (typeof delta === 'string' && delta.length > 0) {
       return { kind: 'delta', text: delta };

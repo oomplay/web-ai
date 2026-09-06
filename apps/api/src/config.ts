@@ -91,6 +91,57 @@ function readHostAllowlist(name: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+/**
+ * Per-model thinking-split configuration.
+ *
+ * Background: models differ in HOW they expose chain-of-thought:
+ *  - Some concatenate "thinking" and "answer" into a single `content`
+ *    stream separated by a `\n\s*\n\s*\n` boundary (e.g.
+ *    Lorbus/Qwen3.6-27B-int4-AutoRound). These need the heuristic
+ *    ThinkingSplitter.
+ *  - Others expose a separate `reasoning_content` field on each delta
+ *    (OpenAI-compatible reasoning models, e.g. nemotron-auto). These
+ *    need NO splitter — the field type already separates them, and a
+ *    heuristic splitter would corrupt their plain answer text if it
+ *    ever contained a triple-newline boundary.
+ *  - Others emit no reasoning at all.
+ *
+ * The old single boolean `AI_GATEWAY_SPLIT_THINKING` applied one mode
+ * to every model, which breaks as soon as the gateway serves models
+ * with different behaviours. It is replaced by a per-model map:
+ *
+ *   AI_GATEWAY_SPLIT_THINKING_MODELS=Lorbus/Qwen3.6-27B-int4-AutoRound
+ *
+ * (comma-separated model ids that need the heuristic content splitter).
+ * The legacy boolean is still honoured for backward compatibility: if
+ * `AI_GATEWAY_SPLIT_THINKING=true` is set, every allowlisted model is
+ * treated as needing the splitter unless the per-model var is present.
+ */
+function readSplitThinkingModels(
+  allowlist: string[],
+  legacyFlag: boolean,
+): Set<string> {
+  const raw = process.env['AI_GATEWAY_SPLIT_THINKING_MODELS'];
+  if (raw !== undefined && raw.trim() !== '') {
+    const ids = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    // Unknown ids are rejected: a typo would otherwise silently disable
+    // splitting for the intended model (fail fast at boot instead).
+    for (const id of ids) {
+      if (!allowlist.includes(id)) {
+        throw new Error(
+          `AI_GATEWAY_SPLIT_THINKING_MODELS contains '${id}', which is not in AI_GATEWAY_MODELS.`,
+        );
+      }
+    }
+    return new Set(ids);
+  }
+  // Legacy fallback: single global flag applies to the whole allowlist.
+  return legacyFlag ? new Set(allowlist) : new Set<string>();
+}
+
 export const config = {
   port: readInt('PORT', 8787),
   // Allowlist of origins permitted to call this API. Comma-separated.
@@ -106,9 +157,14 @@ export const config = {
     modelLabels: readModelLabels('AI_GATEWAY_MODEL_LABELS'),
     timeoutMs: readInt('AI_GATEWAY_TIMEOUT_MS', 30_000),
     allowedHosts: readHostAllowlist('AI_GATEWAY_ALLOWED_HOSTS'),
-    // Per-deployment switch: enable thinking/answer split on the
-    // gateway wire format. See `ThinkingSplitter` for the rationale.
-    splitThinking: readBool('AI_GATEWAY_SPLIT_THINKING', false),
+    // Per-model set of ids that need the heuristic ThinkingSplitter
+    // (models that concatenate thinking + answer into one `content`
+    // stream). See readSplitThinkingModels() for the format and the
+    // legacy-flag fallback.
+    splitThinkingModels: readSplitThinkingModels(
+      readModelAllowlist('AI_GATEWAY_MODELS'),
+      readBool('AI_GATEWAY_SPLIT_THINKING', false),
+    ),
   },
   // Number of trusted reverse-proxy hops in front of this service. Set to 0
   // if the API is exposed directly to clients; set to 1 (or more) when

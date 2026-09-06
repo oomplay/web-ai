@@ -108,6 +108,7 @@ export function safeProviderError(upstream: {
  */
 export type ParsedUpstreamEvent =
   | { kind: 'delta'; text: string }
+  | { kind: 'thinking'; text: string }
   | { kind: 'done' }
   | { kind: 'error'; text: string }
   | { kind: 'comment' }

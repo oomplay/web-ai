@@ -19,10 +19,9 @@ const registry = createRegistry({
     apiKey: config.aiGateway.apiKey,
     models: config.aiGateway.models,
     modelLabels: config.aiGateway.modelLabels,
-    allowedHosts: config.aiGateway.allowedHosts,
-    timeoutMs: config.aiGateway.timeoutMs,
-    splitThinking: config.aiGateway.splitThinking,
-  },
+    allowedHosts: config.aiGateway.allowedHosts,      timeoutMs: config.aiGateway.timeoutMs,
+      splitThinkingModels: config.aiGateway.splitThinkingModels,
+    },
 });
 
 // Each limiter has a single, narrow interface so a Redis-backed
