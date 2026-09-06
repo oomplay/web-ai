@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatRequest, Provider } from './types.js';
+import type { ChatMessage, ChatRequest, Provider, StreamPart } from './types.js';
 
 /**
  * Phase 2A mock provider. Streams a deterministic, canned reply split into
@@ -33,13 +33,14 @@ export class MockProvider implements Provider {
     ];
   }
 
-  async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<string> {
+  async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<StreamPart> {
     const lastUser = [...req.messages].reverse().find((m) => m.role === 'user');
     const reply = buildReply(req.model, lastUser?.content ?? '');
     for (const piece of chunkify(reply, CHUNK_SIZE)) {
       if (signal.aborted) return;
       await sleep(CHUNK_DELAY_MS, signal);
-      yield piece;
+      // The mock never emits a thinking prefix; everything is the answer.
+      yield { kind: 'answer', text: piece };
     }
   }
 }

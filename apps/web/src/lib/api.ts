@@ -5,16 +5,34 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8787';
 
 export async function fetchModels(signal?: AbortSignal): Promise<ModelInfo[]> {
-  const res = await fetch(`${API_BASE_URL}/api/models`, { signal });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/models`, { signal });
+  } catch (err) {
+    if ((err as { name?: string }).name === 'AbortError') {
+      // Caller cancelled the request. Not an error condition — return an
+      // empty list so the consumer can early-return without a try/catch.
+      // (The previous implementation threw `new Error('Cancelled')` which
+      // surfaced as "Error: Cancelled" in the model dropdown during
+      // legitimate re-renders that abort an in-flight fetch.)
+      return [];
+    }
+    // eslint-disable-next-line no-console
+    console.warn('[web-ai] models network error', err);
+    throw new Error('Unable to load models.');
+  }
   if (!res.ok) {
-    throw new Error(`Failed to load models: ${res.status}`);
+    const envelope = await safeReadError(res);
+    throw new Error(envelope ?? httpErrorFallback(res.status));
   }
   const data = (await res.json()) as { models: ModelInfo[] };
   return data.models;
 }
 
 export type StreamEvent =
-  | { type: 'delta'; text: string }
+  | { type: 'thinking'; text: string }
+  | { type: 'answer'; text: string }
+  | { type: 'delta'; text: string }   // legacy: providers without split
   | { type: 'error'; message: string }
   | { type: 'done' };
 
@@ -44,13 +62,25 @@ export function streamChat(input: {
       });
     } catch (err) {
       if ((err as { name?: string }).name === 'AbortError') return;
-      yield { type: 'error', message: (err as Error).message || 'Network error' };
+      // Network errors can carry browser-specific text (e.g. "Failed to
+      // fetch", "NetworkError when attempting to fetch resource") that
+      // leaks implementation detail. Map to a single sanitised message.
+      yield { type: 'error', message: 'Unable to reach the server.' };
+      // Original error is still in the console for debugging.
+      // eslint-disable-next-line no-console
+      console.warn('[web-ai] chat network error', err);
       return;
     }
 
     if (!res.ok || !res.body) {
-      const text = await safeReadText(res);
-      yield { type: 'error', message: `Server error: ${res.status} ${text}` };
+      // Try to extract the user-facing message from the backend's JSON
+      // envelope (`{"error":"..."}`). Fall back to a generic message
+      // keyed on the status code so we never echo the raw response body
+      // to the chat UI (which may contain stack traces, internal IDs,
+      // or upstream error text the backend already sanitised once).
+      const envelope = await safeReadError(res);
+      const message = envelope ?? httpErrorFallback(res.status);
+      yield { type: 'error', message };
       return;
     }
 
@@ -78,7 +108,10 @@ export function streamChat(input: {
       if (trailing) yield trailing;
     } catch (err) {
       if ((err as { name?: string }).name === 'AbortError') return;
-      yield { type: 'error', message: (err as Error).message || 'Stream error' };
+      // Same sanitisation policy as the pre-stream fetch failure.
+      yield { type: 'error', message: 'Connection lost while reading response.' };
+      // eslint-disable-next-line no-console
+      console.warn('[web-ai] chat stream error', err);
     } finally {
       try {
         reader.releaseLock();
@@ -119,19 +152,62 @@ function parseSseEvent(raw: string): StreamEvent | null {
   if (payload === '') return null; // pure whitespace / heartbeat
   if (payload === '[DONE]') return { type: 'done' };
   try {
-    const obj = JSON.parse(payload) as { delta?: unknown; error?: unknown };
-    if (typeof obj.delta === 'string') return { type: 'delta', text: obj.delta };
-    if (typeof obj.error === 'string') return { type: 'error', message: obj.error };
+    const obj = JSON.parse(payload) as {
+      type?: unknown;
+      delta?: unknown;
+      error?: unknown;
+    };
+    if (typeof obj.delta !== 'string') return null;
+    const text = obj.delta;
+    // Provider may emit a `type` field ("thinking" / "answer"). If it
+    // is missing or unknown, fall back to "answer" so the chat bubble
+    // is always the default render target.
+    const t = typeof obj.type === 'string' ? obj.type : 'answer';
+    if (t === 'thinking' || t === 'answer' || t === 'delta') {
+      // `delta` is kept for backward compatibility with any cached
+      // payload that did not declare a type. It is treated as answer.
+      return { type: t, text };
+    }
+    return { type: 'answer', text };
   } catch {
     /* swallow malformed events but do not drop the buffer */
   }
   return null;
 }
 
-async function safeReadText(res: Response): Promise<string> {
+/**
+ * Try to read the backend's JSON `{error: "..."}` envelope and return the
+ * message verbatim if it looks safe. Returns `null` if the body is missing,
+ * not JSON, has no `error` field, or the field is not a non-empty string.
+ *
+ * The backend is responsible for the message already being user-safe (see
+ * `safeProviderError` in the API). We do NOT do any extra transformation
+ * here: if the backend says "Too many concurrent streams.", that's what
+ * the user sees.
+ */
+async function safeReadError(res: Response): Promise<string | null> {
   try {
-    return await res.text();
+    const text = await res.text();
+    if (!text) return null;
+    const parsed = JSON.parse(text) as { error?: unknown };
+    if (typeof parsed.error === 'string' && parsed.error.length > 0) {
+      return parsed.error;
+    }
   } catch {
-    return '';
+    /* not JSON or unreadable */
   }
+  return null;
+}
+
+/**
+ * Generic, user-safe message keyed on the HTTP status when the backend
+ * did not provide a JSON envelope. Status codes are not sensitive (they
+ * are visible in the browser devtools network panel anyway), so we use
+ * them as a stable fallback label.
+ */
+function httpErrorFallback(status: number): string {
+  if (status === 429) return 'Too many requests.';
+  if (status === 413) return 'Request too large.';
+  if (status >= 500) return 'Server error. Please try again.';
+  return `Server error ( ${status} ).`;
 }

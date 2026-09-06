@@ -135,6 +135,7 @@ document real values.
 | `AI_GATEWAY_BASE_URL` | OpenAI-compatible chat-completions base URL. Must be HTTPS, and the host must appear in `AI_GATEWAY_ALLOWED_HOSTS`. |
 | `AI_GATEWAY_API_KEY` | Outbound AI-provider credential. Treated as a secret. |
 | `AI_GATEWAY_MODELS` | Comma-separated model-id allowlist; anything else returns 404. |
+| `AI_GATEWAY_MODEL_LABELS` | Optional JSON `{"id":"Label"}` map; the frontend shows these human-readable labels in the model picker. Malformed JSON refuses to boot. Ids not in the map fall back to the raw id. |
 | `AI_GATEWAY_ALLOWED_HOSTS` | Comma-separated hostname allowlist for the base URL. |
 | `AI_GATEWAY_TIMEOUT_MS` | Per-request outbound timeout. |
 | `CHAT_RATE_LIMIT_*`, `MODELS_RATE_LIMIT_*`, `MAX_CONCURRENT_*`, `MAX_MESSAGES`, `MAX_MESSAGE_LENGTH`, `MAX_TOTAL_CHARS`, `SSE_*` | Safety-layer knobs. Defaults are conservative; override only with a clear operational reason. |

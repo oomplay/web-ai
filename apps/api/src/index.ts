@@ -18,8 +18,10 @@ const registry = createRegistry({
     baseUrl: config.aiGateway.baseUrl,
     apiKey: config.aiGateway.apiKey,
     models: config.aiGateway.models,
+    modelLabels: config.aiGateway.modelLabels,
     allowedHosts: config.aiGateway.allowedHosts,
     timeoutMs: config.aiGateway.timeoutMs,
+    splitThinking: config.aiGateway.splitThinking,
   },
 });
 
@@ -171,6 +173,27 @@ const server = app.listen(config.port, () => {
       `chat-limit=${config.safety.chatRateLimit.max}/${config.safety.chatRateLimit.windowMs}ms, ` +
       `concurrent-streams=${config.safety.maxConcurrentStreamsPerIp})`,
   );
+  // Summarise the resolved provider set so an operator looking at the
+  // boot log can tell at a glance which providers are serving traffic
+  // (vs which were configured but not registered, due to missing env).
+  // Listing is lazy (calls provider.listModels()) so we catch any
+  // provider whose constructor succeeded but whose listModels throws.
+  registry
+    .listModels()
+    .then((models) => {
+      const byProvider = new Map<string, number>();
+      for (const m of models) {
+        byProvider.set(m.provider, (byProvider.get(m.provider) ?? 0) + 1);
+      }
+      const lines: string[] = [];
+      for (const [pid, n] of byProvider) lines.push(`${pid}=${n}`);
+      // eslint-disable-next-line no-console
+      console.log(`[api] active providers: ${lines.join(', ') || '(none)'}`);
+    })
+    .catch((err: unknown) => {
+      // eslint-disable-next-line no-console
+      console.error('[api] failed to enumerate active providers', err);
+    });
 });
 
 server.keepAliveTimeout = 65_000;

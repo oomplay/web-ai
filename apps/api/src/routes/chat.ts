@@ -153,9 +153,15 @@ export function chatRouter(deps: ChatRouterDeps): Router {
 
     let userError: string | null = null;
     try {
-      for await (const piece of provider.chat(chatReq, ac.signal)) {
+      for await (const part of provider.chat(chatReq, ac.signal)) {
         if (ac.signal.aborted) break;
-        if (!writeEvent({ delta: piece })) break;
+        // Forward each part with its kind. A `thinking` part is what
+        // the frontend renders in a collapsible panel; `answer` parts
+        // render in the main chat bubble. We always include `type` so
+        // the frontend does not need to guess; legacy clients that
+        // ignore `type` and only read `delta` still work because every
+        // event also carries the text.
+        if (!writeEvent({ type: part.kind, delta: part.text })) break;
         armIdle();
       }
       if (!ac.signal.aborted) {
@@ -195,6 +201,7 @@ export function chatRouter(deps: ChatRouterDeps): Router {
       // eslint-disable-next-line no-console
       console.error('[api] chat provider error', {
         ip,
+        provider: provider.id,
         model,
         message: err instanceof Error ? err.message : String(err),
       });

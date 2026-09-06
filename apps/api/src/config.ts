@@ -49,6 +49,34 @@ function readModelAllowlist(name: string): string[] {
 }
 
 /**
+ * Optional JSON map from upstream model id to human-readable label.
+ * Example: {"openai/gpt-4o-mini":"GPT-4o mini"}
+ * Parsed once at boot. Malformed JSON is rejected so a typo cannot
+ * silently turn every label into the raw id.
+ */
+function readModelLabels(name: string): Record<string, string> {
+  const v = process.env[name];
+  if (v === undefined || v === '') return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(v);
+  } catch {
+    throw new Error(`${name} must be a valid JSON object (e.g. {"id":"Label"}).`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${name} must be a JSON object of {modelId:label} pairs.`);
+  }
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof val !== 'string' || val.length === 0) {
+      throw new Error(`${name} entry for '${k}' must be a non-empty string.`);
+    }
+    out[k] = val;
+  }
+  return out;
+}
+
+/**
  * Comma-separated list of hostnames the AI Gateway base URL is allowed
  * to point at. This is the SSRF guard: even if the operator mistypes a
  * URL, fetch will refuse to issue a request unless the host is on this
@@ -75,8 +103,12 @@ export const config = {
     baseUrl: readString('AI_GATEWAY_BASE_URL'),
     apiKey: readString('AI_GATEWAY_API_KEY'),
     models: readModelAllowlist('AI_GATEWAY_MODELS'),
+    modelLabels: readModelLabels('AI_GATEWAY_MODEL_LABELS'),
     timeoutMs: readInt('AI_GATEWAY_TIMEOUT_MS', 30_000),
     allowedHosts: readHostAllowlist('AI_GATEWAY_ALLOWED_HOSTS'),
+    // Per-deployment switch: enable thinking/answer split on the
+    // gateway wire format. See `ThinkingSplitter` for the rationale.
+    splitThinking: readBool('AI_GATEWAY_SPLIT_THINKING', false),
   },
   // Number of trusted reverse-proxy hops in front of this service. Set to 0
   // if the API is exposed directly to clients; set to 1 (or more) when

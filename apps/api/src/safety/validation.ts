@@ -36,13 +36,19 @@ export function validateChatInput(
   }
   const b = body as { model?: unknown; messages?: unknown };
 
-  if (typeof b.model !== 'string' || b.model.length === 0 || b.model.length > 128) {
+  if (typeof b.model !== 'string' || b.model.length === 0 || b.model.length > 256) {
     return { ok: false, reason: 'Invalid model.', status: 400 };
   }
-  // Model id charset: only safe URL-friendly characters. This is belt-and-
-  // braces because resolveProvider() already does the authoritative check;
-  // we want to fail fast on garbage before doing any further work.
-  if (!/^[A-Za-z0-9._:-]+$/.test(b.model)) {
+  // Model id charset. Some upstream providers expose ids with `/`
+  // (provider/model), spaces, parentheses, or unicode. We allow a wide
+  // set of printable characters but reject control characters (which
+  // would let an attacker inject CRLF into the JSON request body or
+  // into log lines) and the JSON-significant `"` and `\\` (which would
+  // let them break out of the JSON envelope). The authoritative
+  // allowlist still lives in the provider (`allowedModels`), so even a
+  // permissive charset here cannot route an unknown model to the
+  // upstream.
+  if (/[\x00-\x1f\x7f"\\]/.test(b.model)) {
     return { ok: false, reason: 'Invalid model.', status: 400 };
   }
 

@@ -15,8 +15,16 @@ export interface RegistryConfig {
     baseUrl?: string;
     apiKey?: string;
     models: string[];
+    modelLabels: Record<string, string>;
     allowedHosts: string[];
     timeoutMs?: number;
+    /**
+     * When `true`, the KiwiCraft gateway provider wraps its stream with
+     * a `ThinkingSplitter` so the upstream's "thinking" prefix and the
+     * final answer are forwarded as two separate SSE event kinds. See
+     * `KiwiCraftAIGatewayOptions.splitThinking` for the rationale.
+     */
+    splitThinking?: boolean;
   };
 }
 
@@ -47,8 +55,10 @@ export function createRegistry(env: RegistryConfig): Registry {
           baseUrl: env.aiGateway.baseUrl,
           apiKey: env.aiGateway.apiKey,
           models: env.aiGateway.models,
+          modelLabels: env.aiGateway.modelLabels,
           allowedHosts: env.aiGateway.allowedHosts,
           timeoutMs: env.aiGateway.timeoutMs,
+          splitThinking: env.aiGateway.splitThinking ?? false,
         }),
       );
       // eslint-disable-next-line no-console

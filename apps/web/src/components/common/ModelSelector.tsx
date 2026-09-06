@@ -13,21 +13,32 @@ export function ModelSelector({ value, onChange, className }: Props) {
   const [models, setModels] = useState<ModelInfo[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  // Fetch the model list exactly once on mount. Re-running this on every
+  // `value` or `onChange` change is a footgun: streaming deltas cause
+  // `active` to be a new object reference in the parent, which propagates
+  // down as a new `value` string, which would abort the in-flight
+  // fetchModels() and surface a transient "Cancelled" error in the
+  // dropdown. The list is static for the lifetime of the page anyway.
   useEffect(() => {
     const ac = new AbortController();
     fetchModels(ac.signal)
       .then((m) => {
+        if (ac.signal.aborted) return;
         setModels(m);
-        if (!value && m.length > 0) {
-          const first = m[0];
-          if (first) onChange(first.id);
+        // Auto-select the first model only if the parent has not given us
+        // a real id yet. We deliberately do NOT depend on `value` here so
+        // that the parent stays in control of the selection.
+        if (m.length > 0) {
+          setErr(null);
         }
       })
       .catch((e: Error) => {
-        if (e.name !== 'AbortError') setErr(e.message);
+        if (e.name === 'AbortError' || ac.signal.aborted) return;
+        setErr(e.message);
       });
     return () => ac.abort();
-  }, [onChange, value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={classNames('flex flex-col gap-1', className)}>

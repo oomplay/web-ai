@@ -79,43 +79,57 @@ export function useChat(args: UseChatArgs): UseChatResult {
     abortRef.current = handle.abort;
 
     (async () => {
-      let acc = '';
-      let settled = false;
-      try {
-        for await (const ev of handle.events) {
-          if (ev.type === 'delta') {
-            acc += ev.text;
-            a.onUpdateLastMessage(conv.id, assistantMsg.id, { content: acc });
-          } else if (ev.type === 'error') {
-            settled = true;
-            setError(ev.message);
-            a.onUpdateLastMessage(conv.id, assistantMsg.id, {
-              content: acc
-                ? acc + `\n\n_Error: ${ev.message}_`
-                : `_Error: ${ev.message}_`,
-            });
-            break;
-          } else if (ev.type === 'done') {
-            settled = true;
-            break;
-          }
+    let accAnswer = '';
+    let accThinking = '';
+    let settled = false;
+    try {
+      for await (const ev of handle.events) {
+        if (ev.type === 'thinking') {
+          accThinking += ev.text;
+          a.onUpdateLastMessage(conv.id, assistantMsg.id, {
+            thinking: accThinking,
+            content: accAnswer,
+          });
+        } else if (ev.type === 'answer' || ev.type === 'delta') {
+          accAnswer += ev.text;
+          a.onUpdateLastMessage(conv.id, assistantMsg.id, {
+            thinking: accThinking,
+            content: accAnswer,
+          });
+        } else if (ev.type === 'error') {
+          settled = true;
+          setError(ev.message);
+          // Keep the streamed prefix visible and append the error note.
+          const errSuffix = accAnswer
+            ? `\n\n_Error: ${ev.message}_`
+            : `_Error: ${ev.message}_`;
+          a.onUpdateLastMessage(conv.id, assistantMsg.id, {
+            thinking: accThinking,
+            content: accAnswer + errSuffix,
+          });
+          break;
+        } else if (ev.type === 'done') {
+          settled = true;
+          break;
         }
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        if (!settled) {
-          // Stream ended without an explicit 'done' or 'error' event. Make sure
-          // the user is not left looking at a half-finished message: finalize
-          // what we have and surface a soft warning so they know it was cut.
-          if (acc) {
-            a.onUpdateLastMessage(conv.id, assistantMsg.id, {
-              content: acc + '\n\n_⚠️ Stream ended unexpectedly._',
-            });
-          }
-        }
-        abortRef.current = null;
-        setIsStreaming(false);
       }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      if (!settled) {
+        // Stream ended without an explicit 'done' or 'error' event. Make sure
+        // the user is not left looking at a half-finished message: finalize
+        // what we have and surface a soft warning so they know it was cut.
+        if (accAnswer) {
+          a.onUpdateLastMessage(conv.id, assistantMsg.id, {
+            thinking: accThinking,
+            content: accAnswer + '\n\n_⚠️ Stream ended unexpectedly._',
+          });
+        }
+      }
+      abortRef.current = null;
+      setIsStreaming(false);
+    }
     })();
   };
 

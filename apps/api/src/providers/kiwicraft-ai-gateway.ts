@@ -1,4 +1,4 @@
-import type { ChatRequest, ModelInfo, Provider } from './types.js';
+import type { ChatRequest, ModelInfo, Provider, StreamPart } from './types.js';
 import {
   type ParsedUpstreamEvent,
   composeTimeoutSignal,
@@ -7,13 +7,33 @@ import {
 } from './ai-gateway-utils.js';
 import { resolveChatEndpoint } from './ai-gateway-ssrf.js';
 import { parseUpstreamEvent } from './ai-gateway-sse.js';
+import { ThinkingSplitter } from './thinking-splitter.js';
 
 export interface KiwiCraftAIGatewayOptions {
   baseUrl: string;
   apiKey: string;
   models: string[];
+  /**
+   * Optional id -> label map. When present, the matching model id is
+   * exposed with this human-readable label via `listModels()`. Ids
+   * without an entry fall back to the id itself.
+   */
+  modelLabels?: Record<string, string>;
   allowedHosts: string[];
   timeoutMs?: number;
+  /**
+   * Enable thinking/answer split for the wire format. When `true`, the
+   * gateway's raw `content` stream is fed through `ThinkingSplitter`,
+   * which detects the `\n\s*\n\s*\n` boundary and yields the prefix as
+   * `kind: 'thinking'` and the suffix as `kind: 'answer'`. This is a
+   * per-deployment switch because it only matters for models that do
+   * not expose `reasoning_content` separately (e.g. the
+   * Lorbus/Qwen3.6-27B-int4-AutoRound model behind this gateway). When
+   * `false` (the default), every byte is yielded as `kind: 'answer'`,
+   * which is exactly what upstream models that already split reasoning
+   * want — and what the previous behaviour shipped.
+   */
+  splitThinking?: boolean;
   /** Test-only: override the fetch implementation. */
   fetchImpl?: typeof fetch;
 }
@@ -44,7 +64,9 @@ export class KiwiCraftAIGatewayProvider implements Provider {
   private readonly host: string;
   private readonly apiKey: string;
   private readonly allowedModels: Set<string>;
+  private readonly modelLabels: Record<string, string>;
   private readonly timeoutMs: number;
+  private readonly splitThinking: boolean;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: KiwiCraftAIGatewayOptions) {
@@ -53,25 +75,34 @@ export class KiwiCraftAIGatewayProvider implements Provider {
     this.host = host;
     this.apiKey = opts.apiKey;
     this.allowedModels = new Set(opts.models);
+    this.modelLabels = opts.modelLabels ?? {};
     this.timeoutMs = opts.timeoutMs ?? 30_000;
+    this.splitThinking = opts.splitThinking ?? false;
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
   async listModels(): Promise<ModelInfo[]> {
     return Array.from(this.allowedModels).map((m) => ({
       id: m,
-      label: m,
+      label: this.modelLabels[m] ?? m,
       provider: this.id,
     }));
   }
 
   /**
-   * Stream chat completions from the upstream. Yields plain text deltas;
-   * the route wraps each one in a `data: {"delta":"..."}` frame. Throws
+   * Stream chat completions from the upstream. Yields typed stream
+   * parts; the route wraps each one in a `data: {...}` SSE frame. Throws
    * on upstream errors (the route maps them to a sanitised SSE error
    * event).
+   *
+   * If `splitThinking` is enabled, the raw text stream is fed through
+   * a `ThinkingSplitter` so the thinking/answer boundary is detected
+   * and forwarded as separate `kind: 'thinking'` / `kind: 'answer'`
+   * parts. If it is disabled (the default), every byte is yielded as
+   * `kind: 'answer'` to preserve the historical single-stream wire
+   * format.
    */
-  async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<string> {
+  async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<StreamPart> {
     if (!this.allowedModels.has(req.model)) {
       throw new GatewayConfigError(
         `Model '${req.model}' is not in AI_GATEWAY_MODELS.`,
@@ -110,9 +141,22 @@ export class KiwiCraftAIGatewayProvider implements Provider {
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
+    const splitter = this.splitThinking ? new ThinkingSplitter() : null;
+    let pendingParts: StreamPart[] = [];
     let buffer = '';
     let upstreamErrored = false;
     let userError: string | null = null;
+    const pushText = (text: string): void => {
+      if (splitter) {
+        for (const part of splitter.feed(text)) pendingParts.push(part);
+      } else {
+        if (text.length > 0) pendingParts.push({ kind: 'answer', text });
+      }
+    };
+    const drainPending = (): StreamPart | undefined => {
+      if (pendingParts.length === 0) return undefined;
+      return pendingParts.shift();
+    };
     try {
       while (true) {
         const { value, done } = await reader.read();
@@ -125,7 +169,7 @@ export class KiwiCraftAIGatewayProvider implements Provider {
           buffer = buffer.slice(sep + 2);
           const ev: ParsedUpstreamEvent = parseUpstreamEvent(raw);
           if (ev.kind === 'delta') {
-            yield ev.text;
+            pushText(ev.text);
           } else if (ev.kind === 'error') {
             userError = safeProviderError({ kind: 'parse' });
             upstreamErrored = true;
@@ -138,14 +182,31 @@ export class KiwiCraftAIGatewayProvider implements Provider {
           sep = buffer.indexOf('\n\n');
         }
         if (upstreamErrored) break;
+        // Flush any pending parts produced by pushText before we block on
+        // the next read. The for-await caller pulls one part at a time
+        // (via drainPending) so this yields promptly.
+        if (pendingParts.length > 0) {
+          const next = drainPending();
+          if (next) yield next;
+        }
       }
       // Drain any trailing partial event.
       if (!composed.aborted && !upstreamErrored) {
         const trailing = buffer.trim();
         if (trailing) {
           const ev = parseUpstreamEvent(trailing);
-          if (ev.kind === 'delta') yield ev.text;
+          if (ev.kind === 'delta') pushText(ev.text);
         }
+      }
+      // End of stream: flush the splitter so any held-back buffer is
+      // released. If no boundary was ever seen, this reclassifies the
+      // whole stream as 'answer'.
+      if (splitter) {
+        for (const part of splitter.flush()) pendingParts.push(part);
+      }
+      while (pendingParts.length > 0) {
+        const next = drainPending();
+        if (next) yield next;
       }
     } catch (err) {
       if ((err as { name?: string }).name === 'AbortError') return;

@@ -3,12 +3,15 @@
 A free, public, ad-funded AI chat web app. No login, no signup, no subscription.
 The backend talks to free AI providers and the UI is a self-branded ChatGPT-style interface.
 
-> **Status:** **Phase 1 — MVP Skeleton.**
-> Phase 1 ships a working chat UI, streaming responses, markdown + code highlighting,
-> conversation history in the browser, dark/light theme, model selection, responsive
-> layout, and an `AdSlot` placeholder. The backend uses a `MockProvider` only — no real
-> provider is contacted and no API key is required. Real provider integration, rate
-> limiting, abuse protection, and AdSense are scheduled for Phase 2.
+> **Status:** **Phase 2B — Real provider wired in (opt-out, not opt-in).**
+> Phase 2B adds `KiwiCraftAIGatewayProvider` (OpenAI-compatible
+> `/chat/completions`, SSRF guard, host allowlist, model allowlist,
+> per-request timeout, sanitised errors) and switches the default
+> behaviour to a real provider. The mock provider is still available
+> for offline development; both can be registered simultaneously.
+> Set `MOCK_PROVIDER_ENABLED=true` and `AI_GATEWAY_ENABLED=false` to
+> run mock-only. Phase 3 (AdSense) and Phase 4 (hardening) are still
+> pending.
 
 ## Architecture
 
@@ -21,8 +24,9 @@ Web Chat UI  (React + Vite + TS + Tailwind, port 5173)
   ▼
 Backend API  (Node.js + Express + TS, port 8787)
   │
-  ├── MockProvider         (Phase 1 — default, no credentials)
-  └── OpenAICompatibleProvider  (Phase 2 skeleton, disabled until env is set)
+  ├── MockProvider                  (Phase 1 — opt-in, no credentials)
+  └── KiwiCraftAIGatewayProvider    (Phase 2B — OpenAI-compatible,
+                                     default-on, requires env)
 ```
 
 API keys, base URLs, and model routing live on the server. The frontend never sees them.
@@ -101,15 +105,37 @@ data: [DONE]
 
 ## Configuration
 
-Phase 1 only needs the mock provider to be enabled (default). See `apps/api/.env.example`:
+Both providers are gated by env vars. The defaults in
+`apps/api/.env.example` ship with **mock off and AI Gateway on** —
+that is the production posture (the app is a real product, not a
+demo).
 
-| Variable | Purpose | Phase |
-|---|---|---|
-| `PORT` | Backend port | 1 |
-| `CORS_ORIGIN` | Allowed origin for the frontend | 1 |
-| `MOCK_PROVIDER_ENABLED` | Use the in-process mock provider | 1 |
-| `OPENAI_COMPAT_BASE_URL` | OpenAI-compatible base URL | 2 |
-| `OPENAI_COMPAT_API_KEY` | OpenAI-compatible API key | 2 |
+| Variable | Purpose |
+|---|---|
+| `PORT` | Backend port |
+| `CORS_ORIGIN` | Allowed origin for the frontend (comma-separated, no `*`) |
+| `TRUST_PROXY_HOPS` | Number of trusted reverse-proxy hops (0 = direct) |
+| `MOCK_PROVIDER_ENABLED` | Register the in-process mock provider (`true`/`false`) |
+| `AI_GATEWAY_ENABLED` | Register the real AI Gateway provider (`true`/`false`) |
+| `AI_GATEWAY_BASE_URL` | OpenAI-compatible base URL (must be `https:`) |
+| `AI_GATEWAY_API_KEY` | Upstream API key (treat as a secret) |
+| `AI_GATEWAY_MODELS` | Comma-separated model-id allowlist exposed to clients |
+| `AI_GATEWAY_MODEL_LABELS` | Optional JSON `{"id":"Label"}` map for human-readable labels in the model picker |
+| `AI_GATEWAY_ALLOWED_HOSTS` | Comma-separated hostname allowlist (SSRF guard) |
+| `AI_GATEWAY_TIMEOUT_MS` | Per-request outbound timeout (default 30 000) |
+
+Provider registration rules (see `apps/api/src/providers/registry.ts`):
+
+- The mock provider is registered whenever `MOCK_PROVIDER_ENABLED=true`.
+- The AI Gateway provider is registered **only when all four** hold:
+  `AI_GATEWAY_ENABLED=true`, `AI_GATEWAY_BASE_URL` set,
+  `AI_GATEWAY_API_KEY` set, `AI_GATEWAY_MODELS` non-empty.
+- Both can be active at the same time; the model id routes to the
+  provider that owns it. `GET /api/models` returns the union.
+- Model ids may contain `/`, spaces, and parentheses (some upstreams
+  expose them that way); the safety layer rejects only control
+  characters, `"`, and `\`, and the upstream's own allowlist is the
+  authoritative control on what actually reaches the gateway.
 
 **No credentials are stored in the repository.** `.env` files are git-ignored; only
 `.env.example` is committed.

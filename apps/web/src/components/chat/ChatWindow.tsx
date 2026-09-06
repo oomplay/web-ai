@@ -14,6 +14,7 @@ interface Props {
   onStop: () => void;
   isStreaming: boolean;
   streamingMessageId?: string;
+  providerName?: string;
 }
 
 export function ChatWindow({
@@ -24,6 +25,7 @@ export function ChatWindow({
   onStop,
   isStreaming,
   streamingMessageId,
+  providerName,
 }: Props) {
   const lastAssistantId = useMemo(() => {
     if (!active) return undefined;
@@ -73,6 +75,7 @@ export function ChatWindow({
             ? 'Message Web AI…   (Enter to send, Shift+Enter for newline)'
             : 'Type something to start a new chat…'
         }
+        providerName={providerName}
       />
     </div>
   );

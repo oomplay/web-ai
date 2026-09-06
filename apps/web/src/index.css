@@ -47,6 +47,19 @@ html.dark .thin-scroll::-webkit-scrollbar-thumb {
 .md > *:last-child {
   margin-bottom: 0;
 }
+/* Keep a small safety floor so the last paragraph's descenders (g, p, y, j, q)
+ * do not visually collide with the bubble's bottom padding (py-3 = 12px).
+ * Without this, the descenders look "clipped" against the bubble's ring. */
+.md p:last-child {
+  padding-bottom: 0.25rem;
+}
+.md ul:last-child,
+.md ol:last-child,
+.md pre:last-child,
+.md table:last-child,
+.md blockquote:last-child {
+  padding-bottom: 0.25rem;
+}
 .md p {
   line-height: 1.55;
 }
