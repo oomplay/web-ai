@@ -177,7 +177,7 @@ export function Select({
           'theme-fade flex w-full min-w-0 items-center justify-between gap-1.5 rounded-xl border text-left',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50',
           compact
-            ? 'h-7 border-transparent bg-transparent px-2 text-xs text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            ? 'h-7 max-w-full border-transparent bg-transparent px-2 text-xs text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
             : 'h-9 border-zinc-300 bg-white px-2.5 text-sm text-zinc-900 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-600',
           open && !compact && 'border-brand-400 dark:border-brand-500/60',
         )}

@@ -17,13 +17,10 @@ export interface UseChatArgs {
   ) => void;
   /**
    * Drop `fromMessageId` and everything after it in the conversation.
-   * Used by `regenerate` to remove the stale assistant reply before
-   * re-streaming.
+   * Mutation-only (void). Used by `regenerate` to remove the stale
+   * assistant reply after the prompt has been captured.
    */
-  onTruncateFrom: (
-    conversationId: string,
-    fromMessageId: string,
-  ) => ChatMessage | undefined;
+  onTruncateFrom: (conversationId: string, fromMessageId: string) => void;
 }
 
 export interface UseChatResult {
@@ -179,7 +176,12 @@ export function useChat(args: UseChatArgs): UseChatResult {
 
   // Regenerate: remove the assistant reply (and anything after it), then
   // re-stream using the history up to and including the preceding user
-  // prompt. No new user message is appended — the original prompt stays.
+  // prompt. The prompt is derived from the CURRENT conversation snapshot
+  // BEFORE truncation (truncateFrom is mutation-only; its state update
+  // is not readable back). Regenerating a reply that is not the last
+  // message destroys the turns after it — destructive cuts require the
+  // app's standard `confirm()` first; cancelling leaves the conversation
+  // completely untouched.
   const regenerate = (assistantMessageId: string) => {
     const a = argsRef.current;
     const conv = a.active;
@@ -195,6 +197,15 @@ export function useChat(args: UseChatArgs): UseChatResult {
     }
     if (promptIdx === -1) return;
     const prompt = conv.messages[promptIdx]!;
+    // Destructive? Anything after the reply being regenerated would be
+    // permanently removed — including persisted localStorage history.
+    if (idx < conv.messages.length - 1) {
+      const lost = conv.messages.length - 1 - idx;
+      const ok = window.confirm(
+        `Regenerating this message will remove the ${lost} message${lost === 1 ? '' : 's'} after it. Continue?`,
+      );
+      if (!ok) return;
+    }
     const history: HistoryMessage[] = [
       ...toHistory(conv.messages.slice(0, promptIdx)),
       { role: 'user', content: prompt.content },

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
 import { Markdown } from '../common/Markdown';
 import { classNames } from '../../lib/format';
+import { useCopy } from '../common/useCopy';
 import type { ChatMessage } from '../../types/chat';
 import { ThinkingPanel } from './ThinkingPanel';
 
@@ -12,42 +12,38 @@ interface Props {
 }
 
 function CopyButton({ getText }: { getText: () => string }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(getText());
-      setCopied(true);
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard unavailable (permissions/insecure context) — no-op */
-    }
-  };
+  const { status, copy } = useCopy();
 
   return (
     <button
       type="button"
-      onClick={copy}
-      aria-label={copied ? 'Copied' : 'Copy message'}
-      title={copied ? 'Copied!' : 'Copy message'}
+      onClick={() => copy(getText())}
+      aria-label={
+        status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy failed' : 'Copy message'
+      }
+      title={
+        status === 'copied'
+          ? 'Copied!'
+          : status === 'failed'
+            ? 'Copy failed — clipboard unavailable'
+            : 'Copy message'
+      }
       className={classNames(
         'theme-fade rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600',
         'focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300',
+        status === 'failed' && 'text-red-500 dark:text-red-400',
       )}
     >
-      {copied ? (
+      {status === 'copied' ? (
         // Checkmark feedback state (same geometry as the copy icon).
         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M5 13l4 4L19 7" />
+        </svg>
+      ) : status === 'failed' ? (
+        // Failure feedback: the cross keeps the same icon geometry so the
+        // row cannot shift when the clipboard write is rejected.
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M18 6L6 18M6 6l12 12" />
         </svg>
       ) : (
         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

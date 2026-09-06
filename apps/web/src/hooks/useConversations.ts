@@ -168,26 +168,18 @@ export function useConversations(model: string) {
     [],
   );
 
-  // Regenerate: drop every message from `fromMessageId` (inclusive) and
-  // everything after it, so the caller can re-send the preceding user
-  // turn. Returns the removed user prompt (or undefined if the truncated
-  // history ends without one — nothing to re-send).
+  // Regenerate support: drop every message from `fromMessageId`
+  // (inclusive) and everything after it. Mutation-only — callers must
+  // derive anything they need (e.g. the re-send prompt) from their own
+  // conversation state BEFORE calling this, since the state update is
+  // not readable back synchronously.
   const truncateFrom = useCallback(
-    (conversationId: string, fromMessageId: string): ChatMessage | undefined => {
-      let removedUser: ChatMessage | undefined;
+    (conversationId: string, fromMessageId: string): void => {
       setState((s) => {
         const conv = s.conversations[conversationId];
         if (!conv) return s;
         const idx = conv.messages.findIndex((m) => m.id === fromMessageId);
         if (idx === -1) return s;
-        // The re-sendable prompt is the last user message BEFORE the cut.
-        for (let i = idx - 1; i >= 0; i--) {
-          const m = conv.messages[i];
-          if (m && m.role === 'user') {
-            removedUser = m;
-            break;
-          }
-        }
         const updated: Conversation = {
           ...conv,
           messages: conv.messages.slice(0, idx),
@@ -195,7 +187,6 @@ export function useConversations(model: string) {
         };
         return { ...s, conversations: { ...s.conversations, [conversationId]: updated } };
       });
-      return removedUser;
     },
     [],
   );

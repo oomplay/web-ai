@@ -77,7 +77,7 @@ export function MessageInput({
           // Top half of the attached composer+ad-panel surface. The bottom
           // half (square top corners, rounded bottom corners) is rendered
           // by BottomAdPanel — keep the two halves in sync.
-          'flex items-end gap-2 rounded-t-2xl border border-b-0 bg-white p-2 shadow-none',
+          'flex flex-wrap items-end gap-2 rounded-t-2xl border border-b-0 bg-white p-2 shadow-none',
           'border-zinc-200 focus-within:border-zinc-300 focus-within:ring-1 focus-within:ring-brand-500/30',
           'dark:border-zinc-800 dark:bg-zinc-900 dark:focus-within:border-zinc-700',
         )}
@@ -99,9 +99,19 @@ export function MessageInput({
           )}
         />
         {/* Inline compact model selector (reference design): model name +
-          chevron, borderless, sits right of the input inside the composer. */}
+          chevron, borderless, sits right of the input inside the composer.
+          On mobile the long model label is truncated harder (max-w) and the
+          selector moves below the textarea row so neither is squeezed —
+          the composer stays usable and the model stays switchable at
+          every width (the empty-state selector was removed on purpose;
+          this is the only source of truth). */}
         <div className="mb-1.5 hidden shrink-0 sm:block">
           <ModelSelector value={model} onChange={onModelChange} compact />
+        </div>
+        <div className="order-last flex w-full items-center justify-end sm:hidden">
+          <div className="max-w-[60%]">
+            <ModelSelector value={model} onChange={onModelChange} compact />
+          </div>
         </div>
         {isStreaming ? (
           <button
