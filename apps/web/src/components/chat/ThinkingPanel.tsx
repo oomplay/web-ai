@@ -43,6 +43,8 @@ export function ThinkingPanel({ text, isStreaming }: Props) {
           'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left',
           'font-medium uppercase tracking-wider text-[10px]',
           'hover:bg-zinc-100 dark:hover:bg-zinc-800/60',
+          // Smooth hover recolor.
+          'theme-fade',
         )}
       >
         <span className="flex items-center gap-2">
@@ -68,6 +70,8 @@ export function ThinkingPanel({ text, isStreaming }: Props) {
             'max-h-64 overflow-y-auto whitespace-pre-wrap break-words border-t px-3 py-2 leading-relaxed',
             'border-zinc-200 text-zinc-700',
             'dark:border-zinc-700 dark:text-zinc-300',
+            // Content fades in over the already-expanded panel.
+            'animate-fade',
           )}
         >
           {text}

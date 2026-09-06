@@ -36,11 +36,11 @@ const PANEL_MIN_H = 'min-h-[60px]';
 
 /**
  * Content crossfade for the state swap. Subtle by design: the panel
- * box itself never moves or resizes, only the content inside fades.
- * Reduced-motion users get the instant swap instead.
+ * box itself never moves or resizes, only the content inside fades in
+ * over the stable container (see `.animate-fade` in index.css — pure
+ * opacity, 250ms, disabled under prefers-reduced-motion).
  */
-const FADE_IN =
-  'motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300';
+const FADE_IN = 'animate-fade';
 
 /**
  * The disclosure "filler" shown while no ad is on screen. The wording

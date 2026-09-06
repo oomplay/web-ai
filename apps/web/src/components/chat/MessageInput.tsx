@@ -73,7 +73,7 @@ export function MessageInput({
           // half (square top corners, rounded bottom corners) is rendered
           // by BottomAdPanel — keep the two halves in sync.
           'flex items-end gap-2 rounded-t-2xl border border-b-0 bg-white p-2 shadow-none',
-          'border-zinc-200 focus-within:border-zinc-300',
+          'border-zinc-200 focus-within:border-zinc-300 focus-within:ring-1 focus-within:ring-brand-500/30',
           'dark:border-zinc-800 dark:bg-zinc-900 dark:focus-within:border-zinc-700',
         )}
       >
@@ -91,13 +91,15 @@ export function MessageInput({
             'max-h-[180px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm',
             'text-zinc-900 placeholder:text-zinc-400 focus:outline-none',
             'dark:text-zinc-100 dark:placeholder:text-zinc-500',
+            // Placeholder softens in/out instead of snapping.
+            'transition-opacity duration-150',
           )}
         />
         {isStreaming ? (
           <button
             type="button"
             onClick={onStop}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="theme-fade inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
             aria-label="Stop generating"
             title="Stop generating"
           >
@@ -110,9 +112,11 @@ export function MessageInput({
             aria-label="Send message"
             title="Send message"
             className={classNames(
-              'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors',
+              // Geometry never changes between states (fixed h-9 w-9);
+              // only colors fade, so surrounding content cannot shift.
+              'theme-fade inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
               hasText && !disabled
-                ? 'bg-brand-500 text-white hover:bg-brand-600'
+                ? 'bg-brand-500 text-white hover:bg-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500/50'
                 : 'cursor-default bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-600',
             )}
           >

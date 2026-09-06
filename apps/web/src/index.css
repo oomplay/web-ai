@@ -6,6 +6,76 @@
   color-scheme: light dark;
 }
 
+/* ------------------------------------------------------------------
+ * Motion language
+ *
+ * One shared vocabulary for the app's micro-interactions: short,
+ * ease-out, compositor-friendly (opacity/transform only). Mounted
+ * elements opt in with `animate-rise`; live state changes use the
+ * `theme-fade`/`ui-transition` utilities below. Everything respects
+ * prefers-reduced-motion globally via the media query at the bottom.
+ * ------------------------------------------------------------------ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise-in 180ms ease-out both;
+}
+
+/* Crossfade helper for content that swaps inside a fixed-size box
+ * (bottom ad panel). The old content unmounts and the new content
+ * fades in over the stable container — no height change, no pop. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade {
+  animation: fade-in 250ms ease-out both;
+}
+
+/* Smooth color/border transitions for theme switching and small state
+ * changes (button enable/disable, hover, focus). Colors only — never
+ * layout properties, so nothing shifts while fading. */
+.theme-fade {
+  transition:
+    background-color 180ms ease-out,
+    border-color 180ms ease-out,
+    color 180ms ease-out,
+    fill 180ms ease-out,
+    stroke 180ms ease-out,
+    opacity 150ms ease-out,
+    box-shadow 180ms ease-out;
+}
+
+/* Global reduced-motion kill switch: any animation or transition
+ * becomes an instant state change. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-fade {
+    animation: none;
+  }
+  .theme-fade,
+  .theme-fade * {
+    transition-duration: 0s !important;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
 html,
 body,
 #root {
@@ -35,6 +105,30 @@ html.dark .hljs {
 }
 html.dark .thin-scroll::-webkit-scrollbar-thumb {
   @apply bg-zinc-700;
+}
+
+/* Smooth theme switch: colors ease instead of snapping. Only color-ish
+ * properties are transitioned (never layout), so the swap is a gentle
+ * recolor rather than a "fade the whole website" effect. Reduced-motion
+ * users get an instant switch via the global media rule above. */
+@media (prefers-reduced-motion: no-preference) {
+  body,
+  body * {
+    transition-property:
+      background-color,
+      border-color,
+      color,
+      fill,
+      stroke,
+      box-shadow;
+    transition-duration: 160ms;
+    transition-timing-function: ease-out;
+  }
+  /* Streaming cursor keeps its pulse (opacity keyframes, compositor
+   * only); the blanket color transition above must not slow it. */
+  .animate-pulse {
+    transition-property: none;
+  }
 }
 
 /* Prose-like styles for markdown bubbles */

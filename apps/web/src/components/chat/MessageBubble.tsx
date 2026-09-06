@@ -15,6 +15,10 @@ export function MessageBubble({ message, isStreaming }: Props) {
       className={classNames(
         'flex w-full',
         isUser ? 'justify-end' : 'justify-start',
+        // Subtle entrance: 2px rise + fade, compositor-only. The bubble
+        // itself is the animated element (one per message, mount-once);
+        // streaming text inside is never re-animated.
+        'animate-rise',
       )}
     >
       <div
@@ -58,6 +62,7 @@ export function MessageBubble({ message, isStreaming }: Props) {
           </div>
         )}
         {isStreaming && !isUser && (
+          // Streaming cursor: opacity pulse on a compositor-only layer.
           <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-current align-baseline opacity-70" />
         )}
       </div>
