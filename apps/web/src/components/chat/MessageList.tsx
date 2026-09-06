@@ -5,9 +5,10 @@ import type { ChatMessage } from '../../types/chat';
 interface Props {
   messages: ChatMessage[];
   streamingMessageId?: string;
+  onRegenerate?: (assistantMessageId: string) => void;
 }
 
-export function MessageList({ messages, streamingMessageId }: Props) {
+export function MessageList({ messages, streamingMessageId, onRegenerate }: Props) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export function MessageList({ messages, streamingMessageId }: Props) {
           key={m.id}
           message={m}
           isStreaming={m.id === streamingMessageId}
+          onRegenerate={onRegenerate}
         />
       ))}
       <div ref={endRef} />

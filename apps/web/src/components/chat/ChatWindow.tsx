@@ -10,6 +10,7 @@ interface Props {
   model: string;
   onModelChange: (id: string) => void;
   onSend: (text: string) => void;
+  onRegenerate: (assistantMessageId: string) => void;
   onStop: () => void;
   isStreaming: boolean;
   streamingMessageId?: string;
@@ -21,6 +22,7 @@ export function ChatWindow({
   model,
   onModelChange,
   onSend,
+  onRegenerate,
   onStop,
   isStreaming,
   streamingMessageId,
@@ -67,6 +69,7 @@ export function ChatWindow({
             <MessageList
               messages={active.messages}
               streamingMessageId={effectiveStreamingMessageId}
+              onRegenerate={onRegenerate}
             />
           </>
         )}

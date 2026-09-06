@@ -126,6 +126,7 @@ export default function App() {
     updateLastMessage,
     renameConversation,
     exportConversation,
+    truncateFrom,
   } = useConversations(model);
 
   useEffect(() => {
@@ -142,12 +143,15 @@ export default function App() {
     }
   }, [active, model]);
 
-  const { isStreaming, error, send, stop } = useChat({
+  const {
+    isStreaming, error, send, regenerate, stop,
+  } = useChat({
     model,
     active,
     onCreateConversation: createConversation,
     onAppendMessage: appendMessage,
     onUpdateLastMessage: updateLastMessage,
+    onTruncateFrom: truncateFrom,
   });
 
   const streamingMessageId = useMemo(() => {
@@ -295,6 +299,7 @@ export default function App() {
           model={model}
           onModelChange={setModel}
           onSend={send}
+          onRegenerate={regenerate}
           onStop={stop}
           isStreaming={isStreaming}
           streamingMessageId={streamingMessageId}

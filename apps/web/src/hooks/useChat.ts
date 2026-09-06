@@ -15,13 +15,32 @@ export interface UseChatArgs {
     messageId: string,
     patch: Partial<ChatMessage>,
   ) => void;
+  /**
+   * Drop `fromMessageId` and everything after it in the conversation.
+   * Used by `regenerate` to remove the stale assistant reply before
+   * re-streaming.
+   */
+  onTruncateFrom: (
+    conversationId: string,
+    fromMessageId: string,
+  ) => ChatMessage | undefined;
 }
 
 export interface UseChatResult {
   isStreaming: boolean;
   error: string | null;
   send: (content: string) => void;
+  /** Re-stream the reply for an existing assistant message. */
+  regenerate: (assistantMessageId: string) => void;
   stop: () => void;
+}
+
+type HistoryMessage = { role: 'user' | 'assistant'; content: string };
+
+function toHistory(messages: ChatMessage[]): HistoryMessage[] {
+  return messages
+    .filter((m): m is ChatMessage & HistoryMessage => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({ role: m.role, content: m.content }));
 }
 
 export function useChat(args: UseChatArgs): UseChatResult {
@@ -44,20 +63,11 @@ export function useChat(args: UseChatArgs): UseChatResult {
     setIsStreaming(false);
   }, []);
 
-  // `send` is intentionally NOT wrapped in useCallback: it reads the latest
-  // args via argsRef and reads isStreaming from the current closure, so its
-  // identity does not need to be stable. The function is invoked from a button
-  // click handler (in MessageInput) and from a programmatic caller; neither
-  // depends on `send` reference identity.
-  const send = (content: string) => {
+  // Shared streaming body for `send` and `regenerate`: streams into a
+  // freshly appended assistant message and finalizes it on every exit
+  // path (done / error / aborted / unexpected cut).
+  const runStream = (conv: Conversation, history: HistoryMessage[]) => {
     const a = argsRef.current;
-    const trimmed = content.trim();
-    if (!trimmed || isStreaming) return;
-
-    // Ensure we have a conversation to write into.
-    const conv = a.active ?? a.onCreateConversation();
-
-    a.onAppendMessage(conv.id, { role: 'user', content: trimmed });
     const assistantMsg = a.onAppendMessage(conv.id, {
       role: 'assistant',
       content: '',
@@ -65,15 +75,6 @@ export function useChat(args: UseChatArgs): UseChatResult {
 
     setError(null);
     setIsStreaming(true);
-
-    const history: Array<{ role: 'user' | 'assistant'; content: string }> = [
-      ...conv.messages
-        .filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
-          m.role === 'user' || m.role === 'assistant',
-        )
-        .map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: trimmed },
-    ];
 
     const handle = streamChat({ model: a.model, messages: history });
     abortRef.current = handle.abort;
@@ -154,5 +155,53 @@ export function useChat(args: UseChatArgs): UseChatResult {
     })();
   };
 
-  return { isStreaming, error, send, stop };
+  // `send` is intentionally NOT wrapped in useCallback: it reads the latest
+  // args via argsRef and reads isStreaming from the current closure, so its
+  // identity does not need to be stable. The function is invoked from a button
+  // click handler (in MessageInput) and from a programmatic caller; neither
+  // depends on `send` reference identity.
+  const send = (content: string) => {
+    const a = argsRef.current;
+    const trimmed = content.trim();
+    if (!trimmed || isStreaming) return;
+
+    // Ensure we have a conversation to write into.
+    const conv = a.active ?? a.onCreateConversation();
+
+    a.onAppendMessage(conv.id, { role: 'user', content: trimmed });
+
+    const history: HistoryMessage[] = [
+      ...toHistory(conv.messages),
+      { role: 'user', content: trimmed },
+    ];
+    runStream(conv, history);
+  };
+
+  // Regenerate: remove the assistant reply (and anything after it), then
+  // re-stream using the history up to and including the preceding user
+  // prompt. No new user message is appended — the original prompt stays.
+  const regenerate = (assistantMessageId: string) => {
+    const a = argsRef.current;
+    const conv = a.active;
+    if (!conv || isStreaming) return;
+    const idx = conv.messages.findIndex((m) => m.id === assistantMessageId);
+    if (idx === -1) return;
+    let promptIdx = -1;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (conv.messages[i]?.role === 'user') {
+        promptIdx = i;
+        break;
+      }
+    }
+    if (promptIdx === -1) return;
+    const prompt = conv.messages[promptIdx]!;
+    const history: HistoryMessage[] = [
+      ...toHistory(conv.messages.slice(0, promptIdx)),
+      { role: 'user', content: prompt.content },
+    ];
+    a.onTruncateFrom(conv.id, assistantMessageId);
+    runStream(conv, history);
+  };
+
+  return { isStreaming, error, send, regenerate, stop };
 }

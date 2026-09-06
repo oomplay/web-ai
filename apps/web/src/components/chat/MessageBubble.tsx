@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Markdown } from '../common/Markdown';
 import { classNames } from '../../lib/format';
 import type { ChatMessage } from '../../types/chat';
@@ -6,15 +7,67 @@ import { ThinkingPanel } from './ThinkingPanel';
 interface Props {
   message: ChatMessage;
   isStreaming?: boolean;
+  /** Re-stream this assistant reply (drops it and everything after). */
+  onRegenerate?: (assistantMessageId: string) => void;
 }
 
-export function MessageBubble({ message, isStreaming }: Props) {
+function CopyButton({ getText }: { getText: () => string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      setCopied(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable (permissions/insecure context) — no-op */
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={copied ? 'Copied' : 'Copy message'}
+      title={copied ? 'Copied!' : 'Copy message'}
+      className={classNames(
+        'theme-fade rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600',
+        'focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300',
+      )}
+    >
+      {copied ? (
+        // Checkmark feedback state (same geometry as the copy icon).
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="9" y="9" width="13" height="13" rx="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+export function MessageBubble({ message, isStreaming, onRegenerate }: Props) {
   const isUser = message.role === 'user';
+  // Action row (retry / copy) belongs to finished assistant messages.
+  const showActions = !isUser && !isStreaming;
   return (
     <div
       className={classNames(
-        'flex w-full',
-        isUser ? 'justify-end' : 'justify-start',
+        'flex w-full flex-col gap-1',
+        isUser ? 'items-end' : 'items-start',
         // Subtle entrance: 2px rise + fade, compositor-only. The bubble
         // itself is the animated element (one per message, mount-once);
         // streaming text inside is never re-animated.
@@ -66,6 +119,31 @@ export function MessageBubble({ message, isStreaming }: Props) {
           <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-current align-baseline opacity-70" />
         )}
       </div>
+      {showActions && (
+        // Action row under the bubble: regenerate + copy (reference design).
+        // Hidden while streaming; copy uses the raw content (thinking
+        // excluded) so what lands on the clipboard is the answer text.
+        <div className="flex items-center gap-0.5 px-1">
+          {onRegenerate && (
+            <button
+              type="button"
+              onClick={() => onRegenerate(message.id)}
+              aria-label="Regenerate response"
+              title="Regenerate response"
+              className={classNames(
+                'theme-fade rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600',
+                'focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:hover:bg-zinc-800 dark:hover:text-zinc-300',
+              )}
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <path d="M21 3v6h-6" />
+              </svg>
+            </button>
+          )}
+          <CopyButton getText={() => message.content} />
+        </div>
+      )}
     </div>
   );
 }
