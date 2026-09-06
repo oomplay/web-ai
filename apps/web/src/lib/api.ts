@@ -34,6 +34,7 @@ export type StreamEvent =
   | { type: 'answer'; text: string }
   | { type: 'delta'; text: string }   // legacy: providers without split
   | { type: 'error'; message: string }
+  | { type: 'aborted' }
   | { type: 'done' };
 
 export interface StreamHandle {
@@ -107,7 +108,13 @@ export function streamChat(input: {
       const trailing = parseSseEvent(buffer);
       if (trailing) yield trailing;
     } catch (err) {
-      if ((err as { name?: string }).name === 'AbortError') return;
+      if ((err as { name?: string }).name === 'AbortError') {
+        // The user pressed Stop (or the page is unloading). Distinguish
+        // this from a genuine connection failure so the UI does not
+        // show a scary error for an intentional cancel.
+        yield { type: 'aborted' };
+        return;
+      }
       // Same sanitisation policy as the pre-stream fetch failure.
       yield { type: 'error', message: 'Connection lost while reading response.' };
       // eslint-disable-next-line no-console
@@ -150,14 +157,21 @@ function parseSseEvent(raw: string): StreamEvent | null {
   if (dataLines.length === 0) return null;
   const payload = dataLines.join('\n');
   if (payload === '') return null; // pure whitespace / heartbeat
-  if (payload === '[DONE]') return { type: 'done' };
-  try {
-    const obj = JSON.parse(payload) as {
-      type?: unknown;
-      delta?: unknown;
-      error?: unknown;
-    };
-    if (typeof obj.delta !== 'string') return null;
+  if (payload === '[DONE]') return { type: 'done' };    try {
+      const obj = JSON.parse(payload) as {
+        type?: unknown;
+        delta?: unknown;
+        error?: unknown;
+      };
+      // Backend-sent error envelope (`data: {"error":"..."}`). The
+      // previous implementation only matched events with a `delta`
+      // field, so these were silently swallowed and the client saw the
+      // stream just stop — surfacing the generic "stream ended"
+      // message instead of the backend's user-safe explanation.
+      if (typeof obj.error === 'string' && obj.error.length > 0) {
+        return { type: 'error', message: obj.error };
+      }
+      if (typeof obj.delta !== 'string') return null;
     const text = obj.delta;
     // Provider may emit a `type` field ("thinking" / "answer"). If it
     // is missing or unknown, fall back to "answer" so the chat bubble

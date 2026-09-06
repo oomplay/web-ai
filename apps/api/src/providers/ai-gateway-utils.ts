@@ -12,13 +12,22 @@ import { setTimeout as nodeSetTimeout } from 'node:timers/promises';
  * signal aborts when EITHER source fires. `cleanup()` is idempotent and
  * safe to call multiple times — always invoke it from a `finally` block
  * so the timer never leaks.
+ *
+ * `cancelTimeout()` disarms ONLY the timeout timer while keeping the
+ * base-signal listener attached. Callers use this for streaming
+ * requests: the timeout is meant as a CONNECT budget (time to response
+ * headers), after which the stream is governed by the route's SSE
+ * lifecycle timers (idle / max-duration) and the client's own abort.
+ * Without this, the timeout would kill long-running streams mid-flight
+ * (observed: a 60s timeout aborting a healthy 60s+ generation, which
+ * the upstream logs as `client_gone / context canceled`).
  */
 export function composeTimeoutSignal(
   base: AbortSignal,
   timeoutMs: number | undefined,
-): { signal: AbortSignal; cleanup: () => void } {
+): { signal: AbortSignal; cleanup: () => void; cancelTimeout: () => void } {
   if (!timeoutMs || timeoutMs <= 0) {
-    return { signal: base, cleanup: () => {} };
+    return { signal: base, cleanup: () => {}, cancelTimeout: () => {} };
   }
   const ac = new AbortController();
   const onAbort = () => ac.abort(base.reason);
@@ -35,11 +44,14 @@ export function composeTimeoutSignal(
   // The promise reference is here so the import is used; nodeSetTimeout
   // is the dedicated helper, but we still want setTimeout for unref().
   void nodeSetTimeout;
-  const cleanup = () => {
+  const cancelTimeout = () => {
     clearTimeout(t);
+  };
+  const cleanup = () => {
+    cancelTimeout();
     base.removeEventListener('abort', onAbort);
   };
-  return { signal: ac.signal, cleanup };
+  return { signal: ac.signal, cleanup, cancelTimeout };
 }
 
 /**

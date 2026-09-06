@@ -108,7 +108,10 @@ export class KiwiCraftAIGatewayProvider implements Provider {
         `Model '${req.model}' is not in AI_GATEWAY_MODELS.`,
       );
     }
-    const { signal: composed, cleanup } = composeTimeoutSignal(signal, this.timeoutMs);
+    const { signal: composed, cleanup, cancelTimeout } = composeTimeoutSignal(
+      signal,
+      this.timeoutMs,
+    );
     let res: Response;
     try {
       res = await this.fetchImpl(this.endpoint, {
@@ -139,6 +142,12 @@ export class KiwiCraftAIGatewayProvider implements Provider {
       cleanup();
       throw new Error(safeProviderError({ kind: 'parse' }));
     }
+    // Response headers are in: the timeout has served its purpose as a
+    // CONNECT budget. Disarm it so a long, healthy generation is not
+    // killed mid-stream — the SSE route's own lifecycle timers
+    // (SSE_IDLE_TIMEOUT_MS / SSE_MAX_DURATION_MS) and the client's
+    // abort signal take over from here.
+    cancelTimeout();
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
     const splitter = this.splitThinking ? new ThinkingSplitter() : null;

@@ -108,6 +108,19 @@ export function useChat(args: UseChatArgs): UseChatResult {
             content: accAnswer + errSuffix,
           });
           break;
+        } else if (ev.type === 'aborted') {
+          // The user pressed Stop (fetch threw AbortError). Intentional
+          // cancel — not a connection failure. Finalize with a neutral
+          // note instead of the misleading "stream ended" warning.
+          settled = true;
+          const suffix = accAnswer
+            ? '\n\n_⏹ Stopped by user._'
+            : '_⏹ Stopped by user before an answer was generated._';
+          a.onUpdateLastMessage(conv.id, assistantMsg.id, {
+            thinking: accThinking,
+            content: accAnswer + suffix,
+          });
+          break;
         } else if (ev.type === 'done') {
           settled = true;
           break;
@@ -117,16 +130,19 @@ export function useChat(args: UseChatArgs): UseChatResult {
       setError((err as Error).message);
     } finally {
       if (!settled) {
-        // Stream ended without an explicit 'done' or 'error' event. Make sure
-        // the user is not left looking at a half-finished message: finalize
-        // what we have and surface a soft warning so they know it was cut.
-        // This includes the thinking-only case (Stop pressed before any
-        // answer text arrived): without a visible note here, the bubble
-        // would finalize with empty content and render as blank space
-        // below the ThinkingPanel.
+        // Stream ended without an explicit 'done', 'error' or 'aborted'
+        // event: a genuine unexpected cut (network drop, backend restart,
+        // proxy timeout). This is NOT a user stop, so the message must
+        // say the connection was lost — previously this path reused the
+        // same text as a user-initiated stop, which misled users into
+        // thinking they had cancelled it themselves.
+        //
+        // This includes the thinking-only case: without a visible note
+        // here, the bubble would finalize with empty content and render
+        // as blank space below the ThinkingPanel.
         const suffix = accAnswer
-          ? '\n\n_⚠️ Stream ended unexpectedly._'
-          : '_⚠️ Response stopped before an answer was generated._';
+          ? '\n\n_⚠️ Connection lost while responding. Please try again._'
+          : '_⚠️ Connection lost before an answer was generated. Please try again._';
         a.onUpdateLastMessage(conv.id, assistantMsg.id, {
           thinking: accThinking,
           content: accAnswer + suffix,

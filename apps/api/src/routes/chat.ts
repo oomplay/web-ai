@@ -212,6 +212,12 @@ export function chatRouter(deps: ChatRouterDeps): Router {
     } finally {
       clearAllTimers();
       if (userError) writeEvent({ error: userError });
+      // Tell the provider to stop pulling from the upstream gateway —
+      // otherwise an upstream error leaves the underlying fetch running
+      // until the upstream finishes (or its own timeout fires), which
+      // the gateway then logs as `client_gone / context canceled` even
+      // though we already told the client about the error.
+      if (!ac.signal.aborted) ac.abort('route-finished');
       try {
         res.end();
       } catch {
