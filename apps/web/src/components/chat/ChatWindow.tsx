@@ -86,22 +86,6 @@ export function ChatWindow({
       <div className="mx-auto w-full max-w-3xl px-3 pb-3 sm:px-6 sm:pb-4">
         <BottomAdPanel providerName={providerName} />
       </div>
-      {/* Composer status bar: app badge only. Model selection lives in
-        the empty state (full select) — a second live selector here was
-        redundant and cluttered the minimal layout. */}
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 pb-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span
-            aria-hidden
-            className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-brand-500 text-[9px] font-bold text-white"
-          >
-            K
-          </span>
-          <span className="shrink-0 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-            Kiwi AI
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
