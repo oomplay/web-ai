@@ -4,7 +4,6 @@ import { MessageInput } from './MessageInput';
 import { EmptyState } from './EmptyState';
 import { BottomAdPanel } from '../ads';
 import type { Conversation } from '../../types/chat';
-import { ModelSelector } from '../common/ModelSelector';
 
 interface Props {
   active: Conversation | undefined;
@@ -89,9 +88,9 @@ export function ChatWindow({
       <div className="mx-auto w-full max-w-3xl px-3 pb-3 sm:px-6 sm:pb-4">
         <BottomAdPanel providerName={providerName} />
       </div>
-      {/* Composer status bar: app badge + live model selector on the left.
-        Model switching is a real, working control — everything shown here
-        is backed by existing functionality. */}
+      {/* Composer status bar: app badge only. Model selection lives in
+        the empty state (full select) — a second live selector here was
+        redundant and cluttered the minimal layout. */}
       <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 pb-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-1.5">
           <span
@@ -103,7 +102,6 @@ export function ChatWindow({
           <span className="shrink-0 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
             Kiwi AI
           </span>
-          <ModelSelector value={model} onChange={onModelChange} compact />
         </div>
       </div>
     </div>
