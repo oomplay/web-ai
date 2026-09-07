@@ -116,16 +116,15 @@ export function BottomAdPanel({ providerName, className }: BottomAdPanelProps) {
   if (kind === 'none') {
     return (
       <div className={[PANEL_SURFACE, 'w-full rounded-b-2xl', className ?? ''].join(' ')}>
-        <DisclosureFiller providerName={providerName} />
+        <div aria-live="polite">
+          <DisclosureFiller providerName={providerName} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      className={['w-full rounded-b-2xl', PANEL_SURFACE, className ?? ''].join(' ')}
-      aria-live="polite"
-    >
+    <div className={['w-full rounded-b-2xl', PANEL_SURFACE, className ?? ''].join(' ')}>
       {showAd ? (
         <div className={FADE_IN}>
           {kind === 'adsense' ? (
@@ -134,9 +133,14 @@ export function BottomAdPanel({ providerName, className }: BottomAdPanelProps) {
             <PlaceholderAd variant="bottom" className="w-full" />
           )}
         </div>
-      ) : (
-        <DisclosureFiller providerName={providerName} />
-      )}
+      ) : null}
+      {/* Live region owns the disclosure only — ad content is never
+        announced. The wrapper stays mounted (empty) during the ad phase:
+        a live region only fires for changes inside an existing region, so
+        mounting the filler with aria-live would announce nothing. */}
+      <div aria-live="polite">
+        {!showAd && <DisclosureFiller providerName={providerName} />}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { classNames } from '../../lib/format';
 import { ModelSelector } from '../common/ModelSelector';
 
@@ -24,6 +24,15 @@ export function MessageInput({
   const [text, setText] = useState('');
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Single owner of the textarea height measurement (used by the native
+  // `input` listener below AND by submit — see the comment there).
+  const resize = useCallback(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 180) + 'px';
+  }, []);
+
   // Auto-grow up to ~6 lines. Sized from the DOM value via a native
   // `input` listener — NOT keyed on React state. The DOM value can
   // diverge from state (browser form restoration on reload, IME
@@ -36,23 +45,24 @@ export function MessageInput({
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
-    const resize = () => {
-      ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, 180) + 'px';
-    };
     resize();
     // Sync state with a browser-restored draft so the send button and
     // the visible text agree after a reload.
     if (ta.value && !ta.defaultValue) setText(ta.value);
     ta.addEventListener('input', resize);
     return () => ta.removeEventListener('input', resize);
-  }, []);
+  }, [resize]);
 
   const submit = () => {
     const v = text.trim();
     if (!v || isStreaming) return;
     onSend(v);
     setText('');
+    // Clearing via React state sets `value` programmatically, which does
+    // NOT fire a native `input` event — the listener above never runs, and
+    // the box would stay at its grown height. Re-measure once the cleared
+    // value has committed.
+    requestAnimationFrame(resize);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

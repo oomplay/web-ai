@@ -137,7 +137,11 @@ export function MessageBubble({ message, isStreaming, onRegenerate }: Props) {
               </svg>
             </button>
           )}
-          <CopyButton getText={() => message.content} />
+          <CopyButton
+            // The stored content keeps the splitter's leading boundary
+            // newlines (a rendering concern); the clipboard gets clean text.
+            getText={() => message.content.trim()}
+          />
         </div>
       )}
     </div>
