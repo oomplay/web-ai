@@ -5,6 +5,7 @@ import { ChatWindow } from './components/chat/ChatWindow';
 import { Landing } from './components/landing/Landing';
 import { useConversations } from './hooks/useConversations';
 import { useChat } from './hooks/useChat';
+import { useTheme } from './hooks/useTheme';
 import { classNames } from './lib/format';
 import { shouldStartInChat, withChatFlag } from './lib/route';
 import { fetchModels } from './lib/api';
@@ -44,6 +45,10 @@ function readInitialLandingOpen(): boolean {
 }
 
 export default function App() {
+  // Theme state lives here — the top-level component mounted on every
+  // route — so the stored (or OS-preferred) theme applies at boot on the
+  // landing page too. ThemeToggle below is presentational.
+  const { theme, toggle: toggleTheme } = useTheme();
   const [model, setModel] = useState<string>(readInitialModel);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Landing gate: true = show <Landing />, false = show chat. The "Start
@@ -281,7 +286,7 @@ export default function App() {
                 Clear all
               </button>
             )}
-            <ThemeToggle />
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </header>
 
