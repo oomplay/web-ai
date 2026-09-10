@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { classNames } from '../../lib/format';
 import { ModelSelector } from '../common/ModelSelector';
+import { PANEL_SURFACE } from '../ads/BottomAdPanel';
 
 interface Props {
   onSend: (text: string) => void;
@@ -84,12 +85,13 @@ export function MessageInput({
     >
       <div
         className={classNames(
-          // Top half of the attached composer+ad-panel surface. The bottom
-          // half (square top corners, rounded bottom corners) is rendered
-          // by BottomAdPanel — keep the two halves in sync.
-          'flex flex-wrap items-end gap-2 rounded-t-2xl border border-b-0 bg-white p-2 shadow-none',
-          'border-zinc-200 focus-within:border-zinc-300 focus-within:ring-1 focus-within:ring-brand-500/30',
-          'dark:border-zinc-800 dark:bg-zinc-900 dark:focus-within:border-zinc-700',
+          // Top half of the attached composer+ad-panel surface; the bottom
+          // half is rendered by BottomAdPanel. Both build on the shared
+          // PANEL_SURFACE, so the colors cannot drift apart.
+          'flex flex-wrap items-end gap-2 rounded-t-2xl border-b-0 p-2 shadow-none',
+          PANEL_SURFACE,
+          'focus-within:border-zinc-300 focus-within:ring-1 focus-within:ring-brand-500/30',
+          'dark:focus-within:border-zinc-700',
         )}
       >
         <textarea

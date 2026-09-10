@@ -6,10 +6,9 @@ import { Landing } from './components/landing/Landing';
 import { useConversations } from './hooks/useConversations';
 import { useChat } from './hooks/useChat';
 import { useTheme } from './hooks/useTheme';
+import { useModels } from './hooks/useModels';
 import { classNames } from './lib/format';
 import { shouldStartInChat, withChatFlag } from './lib/route';
-import { fetchModels } from './lib/api';
-import type { ModelInfo } from './types/provider';
 
 // Map a backend `provider` id (as returned in /api/models) to a short
 // human label we can show to end users. The id is internal; the label
@@ -60,10 +59,11 @@ export default function App() {
   // re-fire on every streaming delta (which produces a new `active` object even
   // though the id is unchanged).
   const activeIdRef = useRef<string | null>(null);
-  // Cache of /api/models. Used to (a) auto-select the first model when
-  // localStorage is empty, and (b) derive a human-readable provider name
-  // shown in the chat composer footer.
-  const [models, setModels] = useState<ModelInfo[] | null>(null);
+  // The /api/models list is owned by useModels (single fetch/retry owner
+  // shared with ModelSelector). Used here to (a) auto-select the first
+  // model when localStorage is empty, and (b) derive a human-readable
+  // provider name shown in the chat composer footer.
+  const { models } = useModels();
 
   useEffect(() => {
     try {
@@ -73,52 +73,15 @@ export default function App() {
     }
   }, [model]);
 
-  // Load the model list once. Two reasons:
-  //   (a) the localStorage-persisted model id may have been removed
-  //       server-side, in which case the empty string sentinel would
-  //       never get replaced and the first message would 404.
-  //   (b) the composer footer needs to know which provider the chosen
-  //       model belongs to (mock vs ai-gateway) so the "Powered by …"
-  //       line is honest.
+  // (a) The localStorage-persisted model id may have been removed
+  // server-side, in which case the empty string sentinel would never get
+  // replaced and the first message would 404.
   useEffect(() => {
-    let cancelled = false;
-    let retryInterval: ReturnType<typeof setInterval> | undefined;
-    const ac = new AbortController();
-    const tryFetch = () => {
-      fetchModels(ac.signal)
-        .then((m) => {
-          if (cancelled || ac.signal.aborted) return;
-          setModels(m);
-          // Stop the retry loop once the list is loaded.
-          if (retryInterval) clearInterval(retryInterval);
-          if (model === '' && m.length > 0) {
-            const first = m[0];
-            if (first) setModel(first.id);
-          }
-        })
-        .catch((e: Error) => {
-          if (e.name === 'AbortError' || ac.signal.aborted || cancelled) return;
-          // eslint-disable-next-line no-console
-          console.warn('[web-ai] model fetch failed; will retry', e);
-        });
-    };
-    tryFetch();
-    // The model list is static for the lifetime of the page, but a
-    // transient backend blip at page-load time must not degrade the
-    // whole session (the composer footer loses its provider label).
-    // While the list has not loaded, keep retrying gently; the interval
-    // is cleared on the first successful fetch or on unmount.
-    retryInterval = setInterval(tryFetch, 15_000);
-    return () => {
-      cancelled = true;
-      if (retryInterval) clearInterval(retryInterval);
-      ac.abort();
-    };
-    // We intentionally run this only once. The model list is static for
-    // the lifetime of the page; we do not want to abort and re-fetch
-    // on every `model` change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (model === '' && models && models.length > 0) {
+      const first = models[0];
+      if (first) setModel(first.id);
+    }
+  }, [model, models]);
 
   const {
     conversations,
@@ -175,7 +138,7 @@ export default function App() {
     if (!models || model === '') return undefined;
     const found = models.find((m) => m.id === model);
     return labelForProvider(found?.provider);
-  }, [models, model]);
+  }, [models, model]); // models comes from the shared useModels store
 
   const handleSelect = (id: string) => {
     selectConversation(id);

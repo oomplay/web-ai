@@ -157,21 +157,22 @@ function parseSseEvent(raw: string): StreamEvent | null {
   if (dataLines.length === 0) return null;
   const payload = dataLines.join('\n');
   if (payload === '') return null; // pure whitespace / heartbeat
-  if (payload === '[DONE]') return { type: 'done' };    try {
-      const obj = JSON.parse(payload) as {
-        type?: unknown;
-        delta?: unknown;
-        error?: unknown;
-      };
-      // Backend-sent error envelope (`data: {"error":"..."}`). The
-      // previous implementation only matched events with a `delta`
-      // field, so these were silently swallowed and the client saw the
-      // stream just stop — surfacing the generic "stream ended"
-      // message instead of the backend's user-safe explanation.
-      if (typeof obj.error === 'string' && obj.error.length > 0) {
-        return { type: 'error', message: obj.error };
-      }
-      if (typeof obj.delta !== 'string') return null;
+  if (payload === '[DONE]') return { type: 'done' };
+  try {
+    const obj = JSON.parse(payload) as {
+      type?: unknown;
+      delta?: unknown;
+      error?: unknown;
+    };
+    // Backend-sent error envelope (`data: {"error":"..."}`). The
+    // previous implementation only matched events with a `delta`
+    // field, so these were silently swallowed and the client saw the
+    // stream just stop — surfacing the generic "stream ended"
+    // message instead of the backend's user-safe explanation.
+    if (typeof obj.error === 'string' && obj.error.length > 0) {
+      return { type: 'error', message: obj.error };
+    }
+    if (typeof obj.delta !== 'string') return null;
     const text = obj.delta;
     // Provider may emit a `type` field ("thinking" / "answer"). If it
     // is missing or unknown, fall back to "answer" so the chat bubble
@@ -184,7 +185,9 @@ function parseSseEvent(raw: string): StreamEvent | null {
     }
     return { type: 'answer', text };
   } catch {
-    /* swallow malformed events but do not drop the buffer */
+    // Malformed JSON payload: skip this event (return null) and let the
+    // caller continue with the next one. The raw buffer has already been
+    // consumed by the caller; there is nothing to re-queue here.
   }
   return null;
 }

@@ -21,14 +21,14 @@ export const AD_DISPLAY_DURATION_MS = 25_000; // ~20–30s: ad visible
 export const AD_GAP_DURATION_MS = 12_000; // ~10–15s: disclosure filler visible
 
 /**
- * Shared surface of the composer + bottom panel. The composer
- * (MessageInput) renders the top half of this surface (rounded top
- * corners, no bottom border) and this panel renders the bottom half
- * (square top corners, rounded bottom corners) so the two read as one
- * attached panel. Both halves must stay in sync — change both places
- * or extract deliberately.
+ * Shared surface of the composer + bottom panel: the border/background
+ * colors both halves are built from. The composer (MessageInput) imports
+ * this constant and adds its top-half geometry (rounded top corners, no
+ * bottom border); this panel adds the bottom half (square top corners,
+ * rounded bottom corners). One owner of the colors — the two halves
+ * cannot drift apart.
  */
-const PANEL_SURFACE =
+export const PANEL_SURFACE =
   'border bg-white border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900';
 
 /** Panel height floor shared by both rotation states: no jump on flip. */
@@ -95,7 +95,8 @@ interface BottomAdPanelProps {
  * per-provider changes.
  *
  * Layout: the panel is the bottom half of one attached surface with
- * the composer (see PANEL_SURFACE); height is pinned by PANEL_MIN_H
+ * the composer (see the exported PANEL_SURFACE both halves build on);
+ * height is pinned by PANEL_MIN_H
  * in both rotation states so nothing jumps when the state flips.
  *
  * Timing robustness: see useRotation — background-tab timer

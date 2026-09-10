@@ -1,6 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ModelInfo } from '../../types/provider';
-import { fetchModels } from '../../lib/api';
+import { useModels, retryModels } from '../../hooks/useModels';
 import { classNames } from '../../lib/format';
 import { Select, type SelectOption } from './Select';
 
@@ -28,49 +26,19 @@ export function ModelSelector({
   compact,
   ariaLabel,
 }: Props) {
-  const [models, setModels] = useState<ModelInfo[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const acRef = useRef<AbortController | null>(null);
-
-  // Fetch the model list on mount and whenever the user clicks Retry.
-  // Re-running this on every `value` or `onChange` change is a footgun:
-  // streaming deltas cause `active` to be a new object reference in the
-  // parent, which propagates down as a new `value` string, which would
-  // abort the in-flight fetchModels() and surface a transient
-  // "Cancelled" error in the dropdown. The list is static for the
-  // lifetime of the page anyway.
-  const load = useCallback(() => {
-    acRef.current?.abort();
-    const ac = new AbortController();
-    acRef.current = ac;
-    setLoading(true);
-    setErr(null);
-    fetchModels(ac.signal)
-      .then((m) => {
-        if (ac.signal.aborted) return;
-        setModels(m);
-        setLoading(false);
-      })
-      .catch((e: Error) => {
-        if (e.name === 'AbortError' || ac.signal.aborted) return;
-        setErr(e.message);
-        setLoading(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    load();
-    return () => acRef.current?.abort();
-  }, [load]);
+  // The model list lives in the shared useModels store (single fetch/
+  // retry owner, also used by App for the provider label) — this
+  // component only renders its slice of it. Retry triggers the store's
+  // immediate reload.
+  const { models, loading, error } = useModels();
 
   // Error / loading states become real (disabled) list entries so the
   // trigger always shows what is happening instead of an empty box.
-  const options: SelectOption[] = err
-    ? [{ value, label: `Error: ${err}`, danger: true, disabled: true }]
-    : loading
+  const options: SelectOption[] = error
+    ? [{ value, label: `Error: ${error}`, danger: true, disabled: true }]
+    : loading || !models
       ? [{ value, label: 'Loading…', disabled: true }]
-      : (models ?? []).map((m) => ({ value: m.id, label: m.label }));
+      : models.map((m) => ({ value: m.id, label: m.label }));
 
   return (
     <div className={classNames('flex flex-col gap-1', compact && 'gap-0', className)}>
@@ -88,10 +56,10 @@ export function ModelSelector({
           ariaLabel={ariaLabel ?? 'Select model'}
           className="min-w-0 flex-1"
         />
-        {err && (
+        {error && (
           <button
             type="button"
-            onClick={load}
+            onClick={retryModels}
             className={classNames(
               'theme-fade animate-fade inline-flex shrink-0 items-center rounded-md border border-zinc-300 px-2 text-xs font-medium',
               compact ? 'h-7' : 'h-9',
