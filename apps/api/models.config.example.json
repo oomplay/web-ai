@@ -1,0 +1,13 @@
+{
+  "models": [
+    "provider/model-id-a",
+    "provider/model-id-b"
+  ],
+  "labels": {
+    "provider/model-id-a": "Human-readable Model A",
+    "provider/model-id-b": "Human-readable Model B"
+  },
+  "splitThinkingModels": [
+    "provider/model-id-a"
+  ]
+}

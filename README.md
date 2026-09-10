@@ -116,13 +116,72 @@ demo).
 | `CORS_ORIGIN` | Allowed origin for the frontend (comma-separated, no `*`) |
 | `TRUST_PROXY_HOPS` | Number of trusted reverse-proxy hops (0 = direct) |
 | `MOCK_PROVIDER_ENABLED` | Register the in-process mock provider (`true`/`false`) |
+| `MODEL_CONFIG_FILE` | Hot-reloadable model config file (default `models.config.json` relative to the API working directory) |
 | `AI_GATEWAY_ENABLED` | Register the real AI Gateway provider (`true`/`false`) |
 | `AI_GATEWAY_BASE_URL` | OpenAI-compatible base URL (must be `https:`) |
 | `AI_GATEWAY_API_KEY` | Upstream API key (treat as a secret) |
-| `AI_GATEWAY_MODELS` | Comma-separated model-id allowlist exposed to clients |
-| `AI_GATEWAY_MODEL_LABELS` | Optional JSON `{"id":"Label"}` map for human-readable labels in the model picker |
+| `AI_GATEWAY_MODELS` | **Fallback** comma-separated model-id allowlist (used only when the model config file is absent/invalid) |
+| `AI_GATEWAY_MODEL_LABELS` | **Fallback** JSON `{"id":"Label"}` map for human-readable labels in the model picker |
 | `AI_GATEWAY_ALLOWED_HOSTS` | Comma-separated hostname allowlist (SSRF guard) |
 | `AI_GATEWAY_TIMEOUT_MS` | Per-request outbound timeout (default 30 000) |
+
+### Adding / editing / removing models — no restart required
+
+The model list no longer requires a process restart. Edit
+`apps/api/models.config.json` (template: `models.config.example.json`):
+
+```json
+{
+  "models": ["provider/model-id-a", "provider/model-id-b"],
+  "labels": {
+    "provider/model-id-a": "Human-readable Model A"
+  },
+  "splitThinkingModels": ["provider/model-id-a"]
+}
+```
+
+- `models` — the allowlist exposed via `GET /api/models`; anything else
+  returns 404.
+- `labels` — optional display names for the model picker (every key must
+  appear in `models`).
+- `splitThinkingModels` — ids whose `content` stream needs the heuristic
+  thinking/answer splitter (see `AI_GATEWAY_SPLIT_THINKING_MODELS` in
+  `apps/api/.env.example` for when to use it).
+
+The file is validated on every load (fail-closed: a bad file keeps the
+last-known-good config) and watched with `fs.watch`. While the process
+keeps running:
+
+- **open SSE streams are never interrupted** — a model added or removed
+  mid-conversation does not affect a response that is already streaming;
+- new models are usable **immediately** (`GET /api/models` and
+  `POST /api/chat` pick them up within ~250 ms);
+- the in-memory safety layer (rate-limit windows, concurrency caps) is
+  untouched.
+
+If `fs.watch` does not fire on your filesystem (network mounts, some
+container volumes), `kill -HUP <pid>` re-reads the file manually. The
+legacy `AI_GATEWAY_MODELS` / `AI_GATEWAY_MODEL_LABELS` /
+`AI_GATEWAY_SPLIT_THINKING_MODELS` env vars remain the fallback snapshot
+used when the file is missing or invalid, so existing deployments boot
+unchanged.
+
+### Operational notes on the model config file
+
+- **Path pinning:** the file path is resolved from `MODEL_CONFIG_FILE`
+  (default `models.config.json` relative to the API working directory)
+  at boot. It is read only by the server process — no HTTP endpoint can
+  write or trigger it, so the public attack surface is unchanged. Only
+  someone with filesystem access (or the ability to signal the process)
+  can change the model list.
+- **Fail-closed reload:** a malformed file (bad JSON, unknown label or
+  thinking-split id, duplicate model id) is rejected; the previous
+  config keeps serving and the error is logged. The process never dies
+  from a bad config file.
+- **Removing a model:** existing conversations that referenced it keep
+  their history (the frontend stores its own model id per conversation
+  and falls back to the first available model for the picker); the
+  backend refuses *new* chat requests for the removed id with 404.
 
 Provider registration rules (see `apps/api/src/providers/registry.ts`):
 

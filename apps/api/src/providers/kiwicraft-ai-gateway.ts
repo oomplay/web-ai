@@ -64,10 +64,13 @@ export class KiwiCraftAIGatewayProvider implements Provider {
   private readonly endpoint: string;
   private readonly host: string;
   private readonly apiKey: string;
-  private readonly allowedModels: Set<string>;
-  private readonly modelLabels: Record<string, string>;
+  // NOT readonly: the model snapshot is hot-reloadable (Phase 3.8) so
+  // adding / editing / removing a model never requires a process restart.
+  private allowedModels: Set<string>;
+  private modelLabels: Record<string, string>;
   private readonly timeoutMs: number;
-  private readonly splitThinkingModels: ReadonlySet<string>;
+  // NOT readonly: hot-reloadable via applyModels() (Phase 3.8).
+  private splitThinkingModels: ReadonlySet<string>;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: KiwiCraftAIGatewayOptions) {
@@ -80,6 +83,22 @@ export class KiwiCraftAIGatewayProvider implements Provider {
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.splitThinkingModels = opts.splitThinkingModels ?? new Set<string>();
     this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
+
+  /**
+   * Phase 3.8: swap the model snapshot (allowlist + labels + thinking-split
+   * membership) WITHOUT restarting the process. Called by the registry when
+   * the model-config file changes. The swap is atomic (single-threaded
+   * event loop), so /api/models and /api/chat never observe a torn view.
+   *
+   * In-flight streams are untouched: a running `chat()` generator has
+   * already passed its allowlist check and only reads its local copies of
+   * `this.endpoint` / `this.apiKey`, which do not change here.
+   */
+  applyModels(models: string[], labels: Record<string, string>, splitThinkingModels: ReadonlySet<string>): void {
+    this.allowedModels = new Set(models);
+    this.modelLabels = { ...labels };
+    this.splitThinkingModels = new Set(splitThinkingModels);
   }
 
   async listModels(): Promise<ModelInfo[]> {

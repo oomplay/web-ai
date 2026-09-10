@@ -147,6 +147,11 @@ export const config = {
   // Allowlist of origins permitted to call this API. Comma-separated.
   corsOrigins: readCorsOrigins('CORS_ORIGIN', ['http://localhost:5173']),
   mockProviderEnabled: readBool('MOCK_PROVIDER_ENABLED', true),
+  // Phase 3.8: path to the hot-reloadable model config file (relative to
+  // the process working directory). See providers/model-config.ts. When
+  // the file is absent the AI_GATEWAY_* env vars remain the fallback, so
+  // existing deployments keep working unchanged.
+  modelConfigFile: readString('MODEL_CONFIG_FILE', 'models.config.json'),
   // The mock provider stays available alongside the AI Gateway so the
   // application is still usable when the gateway is disabled or down.
   aiGateway: {

@@ -1,0 +1,13 @@
+{
+  "models": [
+    "Lorbus/Qwen3.6-27B-int4-AutoRound",
+    "nemotron-auto"
+  ],
+  "labels": {
+    "Lorbus/Qwen3.6-27B-int4-AutoRound": "Qwen3.6 27B (4-bit)",
+    "nemotron-auto": "Nemotron Auto Route"
+  },
+  "splitThinkingModels": [
+    "Lorbus/Qwen3.6-27B-int4-AutoRound"
+  ]
+}

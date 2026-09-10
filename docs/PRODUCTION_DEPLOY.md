@@ -74,7 +74,7 @@ before Phase 4 (operational hardening) begins.
 | 3.6 | `apps/web/public/ads.txt` updated from the placeholder `pub-0000000000000000` to the real publisher id, then served from the production origin. | `docs/ADSENSE_REVIEW_CHECKLIST.md` §1.8 |
 | 3.7 | Privacy Policy and Terms of Service pages are live and linked from the landing-page footer. | `docs/ADSENSE_REVIEW_CHECKLIST.md` §1.5, §1.6 |
 | 3.8 | AdSense account is in good standing and the production domain is added to the "Sites" list. | `docs/ADSENSE_REVIEW_CHECKLIST.md` §1.1–§1.4 |
-| 3.9 | `AI_GATEWAY_*` env vars set if the operator enables a real provider: `AI_GATEWAY_ENABLED=true`, `AI_GATEWAY_BASE_URL` on the `AI_GATEWAY_ALLOWED_HOSTS` allowlist, `AI_GATEWAY_API_KEY` set, `AI_GATEWAY_MODELS` non-empty. | `apps/api/.env.example` `AI_GATEWAY_*` |
+| 3.9 | `AI_GATEWAY_*` env vars set if the operator enables a real provider: `AI_GATEWAY_ENABLED=true`, `AI_GATEWAY_BASE_URL` on the `AI_GATEWAY_ALLOWED_HOSTS` allowlist, `AI_GATEWAY_API_KEY` set, and the model list (models.config.json, or AI_GATEWAY_MODELS fallback) non-empty. | `apps/api/.env.example` `AI_GATEWAY_*`; README "Adding / editing / removing models" |
 | 3.10 | Production `.env` (and any secret material) is stored outside the repository, in a secret manager (Vault, AWS Secrets Manager, GCP Secret Manager, Doppler, etc.). Never commit `.env`. | `.gitignore` already excludes `.env` |
 
 ---
@@ -134,8 +134,9 @@ document real values.
 | `AI_GATEWAY_ENABLED` | `true` to register the real AI provider; `false` (default) to run mock-only. |
 | `AI_GATEWAY_BASE_URL` | OpenAI-compatible chat-completions base URL. Must be HTTPS, and the host must appear in `AI_GATEWAY_ALLOWED_HOSTS`. |
 | `AI_GATEWAY_API_KEY` | Outbound AI-provider credential. Treated as a secret. |
-| `AI_GATEWAY_MODELS` | Comma-separated model-id allowlist; anything else returns 404. |
-| `AI_GATEWAY_MODEL_LABELS` | Optional JSON `{"id":"Label"}` map; the frontend shows these human-readable labels in the model picker. Malformed JSON refuses to boot. Ids not in the map fall back to the raw id. |
+| `AI_GATEWAY_MODELS` | **Fallback** model-id allowlist (used only when the model config file is absent/invalid); anything else returns 404. |
+| `AI_GATEWAY_MODEL_LABELS` | **Fallback** optional JSON `{"id":"Label"}` map; the frontend shows these human-readable labels in the model picker. Malformed JSON refuses to boot. Ids not in the map fall back to the raw id. |
+| `MODEL_CONFIG_FILE` | Hot-reloadable model config file (default `models.config.json`). Editing it adds/edits/removes models with **no restart** and **no dropped SSE stream**. See README "Adding / editing / removing models — no restart required". |
 | `AI_GATEWAY_ALLOWED_HOSTS` | Comma-separated hostname allowlist for the base URL. |
 | `AI_GATEWAY_TIMEOUT_MS` | Per-request outbound timeout. |
 | `CHAT_RATE_LIMIT_*`, `MODELS_RATE_LIMIT_*`, `MAX_CONCURRENT_*`, `MAX_MESSAGES`, `MAX_MESSAGE_LENGTH`, `MAX_TOTAL_CHARS`, `SSE_*` | Safety-layer knobs. Defaults are conservative; override only with a clear operational reason. |

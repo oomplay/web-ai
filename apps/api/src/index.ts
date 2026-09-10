@@ -2,6 +2,11 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import cors, { type CorsOptions } from 'cors';
 import { config } from './config.js';
 import { createRegistry } from './providers/registry.js';
+import {
+  createFileModelConfigSource,
+  modelConfigFromEnv,
+  resolveModelConfigPath,
+} from './providers/model-config.js';
 import { healthRouter } from './routes/health.js';
 import { modelsRouter } from './routes/models.js';
 import { chatRouter } from './routes/chat.js';
@@ -11,17 +16,32 @@ import { createConcurrencyLimiter } from './safety/concurrency.js';
 import { createMetricsRegistry } from './metrics/registry.js';
 import { metricsRouter } from './routes/metrics.js';
 
+// Phase 3.8: the model allowlist / labels / thinking-split membership no
+// longer requires a process restart to change. The values live in a small
+// JSON file (MODEL_CONFIG_FILE, default apps/api/models.config.json) that
+// is fs.watch-ed; edits hot-reload into the running provider. The env vars
+// (AI_GATEWAY_MODELS / _MODEL_LABELS / _SPLIT_THINKING_MODELS) remain the
+// fallback snapshot used when the file is absent or invalid, so existing
+// deployments boot unchanged.
+const modelConfigSource = createFileModelConfigSource(
+  resolveModelConfigPath(config.modelConfigFile),
+  modelConfigFromEnv(
+    config.aiGateway.models,
+    config.aiGateway.modelLabels,
+    config.aiGateway.splitThinkingModels,
+  ),
+);
+
 const registry = createRegistry({
   mockEnabled: config.mockProviderEnabled,
   aiGateway: {
     enabled: config.aiGateway.enabled,
     baseUrl: config.aiGateway.baseUrl,
     apiKey: config.aiGateway.apiKey,
-    models: config.aiGateway.models,
-    modelLabels: config.aiGateway.modelLabels,
-    allowedHosts: config.aiGateway.allowedHosts,      timeoutMs: config.aiGateway.timeoutMs,
-      splitThinkingModels: config.aiGateway.splitThinkingModels,
-    },
+    modelConfigSource,
+    allowedHosts: config.aiGateway.allowedHosts,
+    timeoutMs: config.aiGateway.timeoutMs,
+  },
 });
 
 // Each limiter has a single, narrow interface so a Redis-backed
@@ -204,6 +224,7 @@ const shutdown = (signal: string) => {
   console.log(`[api] received ${signal}, shutting down`);
   chatRateLimiter.stop?.();
   modelsRateLimiter.stop?.();
+  registry.stop();
   server.close((err) => {
     if (err) {
       // eslint-disable-next-line no-console
@@ -216,6 +237,18 @@ const shutdown = (signal: string) => {
 };
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// Phase 3.8: manual reload hook for environments where fs.watch does not
+// fire (network mounts, some container volumes) or where the operator
+// prefers an explicit signal. `kill -HUP <pid>` re-reads the model config
+// file without dropping any connection. Local-only by nature: only an
+// operator with shell access to the host (or the configured service
+// manager) can send a signal to the process.
+process.on('SIGHUP', () => {
+  // eslint-disable-next-line no-console
+  console.log('[api] received SIGHUP, reloading model config');
+  modelConfigSource.reload();
+});
 
 process.on('unhandledRejection', (err) => {
   // eslint-disable-next-line no-console
