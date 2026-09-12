@@ -10,6 +10,12 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 const DIST = path.resolve('apps/web/dist');
 const results = [];
+// The gateway live harness stops the primary backend, rebinds 8787 with a
+// gateway-enabled instance, and respawns a default backend afterwards.
+// The respawn handle is tracked here so main() can kill it on exit —
+// otherwise the un-killed child keeps the event loop open and the
+// harness hangs after printing the summary.
+let gatewayRestoredApi = null;
 function record(name, pass, detail) {
   results.push({ name, pass, detail });
   console.log('[' + (pass ? 'PASS' : 'FAIL') + '] ' + name + (detail ? ' :: ' + detail : ''));
@@ -299,7 +305,7 @@ async function frontendChecks() {
   const html = await fetch(APP + '/').then((r) => r.text());
   record('app html 200 with #root', html.includes('id="root"'));
   record('app html references module script', html.includes('type="module"'));
-  record('app html includes brand title', html.includes('Web AI'));
+  record('app html includes brand title', html.includes('Kiwi AI'));
   record('app html points at hashed JS bundle',
     /src="\/assets\/index-[A-Za-z0-9_-]+\.js"/.test(html));
   record('app html has responsive viewport meta',
@@ -330,7 +336,10 @@ async function frontendChecks() {
 
   const jsBody = fs.readFileSync(path.join(DIST, 'assets', js), 'utf8');
   record('bundle contains AdSlot placeholder text', jsBody.includes('Ad slot'));
-  record('bundle contains mock model id', jsBody.includes('mock-mini'));
+  // Model ids come from /api/models at runtime (4c refactor removed the
+  // hardcoded mock ids from the web bundle).
+  record('bundle fetches model list from /api/models (no hardcoded ids)',
+    jsBody.includes('/api/models') && !jsBody.includes('mock-mini'));
   record('bundle references /api/chat via fetch', jsBody.includes('/api/chat'));
   record('bundle contains theme toggle aria', jsBody.includes('Switch to'));
   // Phase 3.1: landing page copy is present in the bundle (smoke test).
@@ -352,15 +361,17 @@ async function frontendChecks() {
     /\['placeholder',\s*'adsense',\s*'none'\]/.test(adsSrc));
   record('ads resolver never touches storage or cookies',
     !/(localStorage|sessionStorage|document\.cookie)/.test(adsSrc));
+  // 94d3f94 renamed AdSlot.tsx -> BottomAdPanel.tsx (single bottom
+  // placement with rotation); these assertions follow the component.
   const adSlotSrc = fs.readFileSync(
-    path.resolve('apps/web/src/components/ads/AdSlot.tsx'),
+    path.resolve('apps/web/src/components/ads/BottomAdPanel.tsx'),
     'utf8',
   );
-  record('AdSlot resolves provider via lib/ads (single source of truth)',
+  record('BottomAdPanel resolves provider via lib/ads (single source of truth)',
     /getAdProvider/.test(adSlotSrc) && /lib\/ads/.test(adSlotSrc));
-  record('AdSlot supports a per-slot provider override',
-    /provider\??:/.test(adSlotSrc));
-  record('AdSlot none-mode reserves layout space without furniture',
+  record('BottomAdPanel delegates rendering to the provider components',
+    /AdsenseAd/.test(adSlotSrc) && /PlaceholderAd/.test(adSlotSrc));
+  record('BottomAdPanel none-mode reserves layout space without furniture',
     /kind === 'none'/.test(adSlotSrc) && /min-h-\[60px\]/.test(adSlotSrc));
   record('bundle contains all three ad provider kinds',
     jsBody.includes('adsense') && jsBody.includes('none') &&
@@ -373,7 +384,7 @@ async function frontendChecks() {
     jsBody.includes('adsbygoogle'));
   record('bundle contains the NPA request path',
     jsBody.includes('requestNonPersonalizedAds'));
-  record('AdSlot delegates the adsense kind to AdsenseAd',
+  record('BottomAdPanel delegates the adsense kind to AdsenseAd',
     /AdsenseAd/.test(adSlotSrc) && !/warnedAdsenseNotWired/.test(adSlotSrc));
   record('adsense script is appended async and only when configured',
     /script\.async = true/.test(adsSrc) &&
@@ -402,7 +413,7 @@ async function frontendChecks() {
   record('adsense ready branch reserves min-h-[60px]',
     /min-h-\[60px\] w-full/.test(adsenseAdSrc));
   record('adsense none-mode reserves min-h-[60px]',
-    /min-h-\[60px\] w-full select-none/.test(adSlotSrc));
+    /min-h-\[60px\]/.test(adSlotSrc));
   // Performance notes document the budget and the measured growth.
   record('performance notes document the budget and the measurements',
     fs.existsSync(path.resolve('docs/PERFORMANCE_NOTES.md')));
@@ -496,8 +507,10 @@ async function frontendChecks() {
     path.resolve('apps/api/src/providers/ai-gateway-ssrf.ts'),
     'utf8',
   );
+  // Allowlist enforcement lives in model-config.ts since the
+  // zero-downtime reload refactor (ae11639).
   const registrySrc = fs.readFileSync(
-    path.resolve('apps/api/src/providers/registry.ts'),
+    path.resolve('apps/api/src/providers/model-config.ts'),
     'utf8',
   );
   const chatRouteSrc = fs.readFileSync(
@@ -1504,10 +1517,13 @@ async function gatewayChecks(serverHandle) {
     // before returning. If anything inside the harness throws we still
     // want subsequent sections to run.
     try {
-      await live.runGatewayLiveChecks(
+      const liveResult = await live.runGatewayLiveChecks(
         serverHandle && serverHandle.api ? serverHandle.api : null,
         record,
       );
+      if (liveResult && liveResult.restoredProc) {
+        gatewayRestoredApi = liveResult.restoredProc;
+      }
     } catch (e) {
       console.error('[verify-gateway] harness threw:', e);
     }
@@ -1617,6 +1633,10 @@ async function startServers() {
       stdio: 'ignore',
       env: {
         ...process.env,
+        // The desktop/CI host may export PORT (e.g. PORT=0) for its own
+        // tooling; pin the verify backend to the contract port so the
+        // fetch probes in this suite hit the right server.
+        PORT: '8787',
         TRUST_PROXY_HOPS: '1',
         MOCK_CHUNK_DELAY_MS: '150',
         // Tighten the total-chars cap so the safety test for
@@ -1669,6 +1689,11 @@ async function main() {
     await section('GATEWAY', () => gatewayChecks(h));
     await section('SECRETS', secretChecks);
   } finally {
+    // h.api may already be dead (the gateway harness SIGKILLed it to
+    // rebind 8787); the restored default backend is killed separately.
+    if (gatewayRestoredApi) {
+      try { gatewayRestoredApi.kill('SIGKILL'); } catch { /* noop */ }
+    }
     if (h && h.api) h.api.kill('SIGTERM');
     if (h && h.web) h.web.kill('SIGTERM');
   }

@@ -91,6 +91,9 @@ async function startBackendWithGateway(baseUrl) {
     {
       env: {
         ...process.env,
+        // Pin the port: the host may export PORT (e.g. 0) and the
+        // harness always probes http://127.0.0.1:8787.
+        PORT: '8787',
         CHAT_RATE_LIMIT_MAX: '1000',
         MAX_CONCURRENT_STREAMS_PER_IP: '50',
         MAX_TOTAL_CHARS: '30000',
@@ -135,6 +138,8 @@ function startBackendOnDefaultPort() {
       stdio: 'ignore',
       env: {
         ...process.env,
+        // See startBackendWithGateway: PORT must be pinned to 8787.
+        PORT: '8787',
         TRUST_PROXY_HOPS: '1',
         MOCK_CHUNK_DELAY_MS: '150',
         MAX_TOTAL_CHARS: '30000',
@@ -205,11 +210,15 @@ export async function runGatewayLiveChecks(existingBackend, record) {
   // eslint-disable-next-line no-console
   console.log('[verify-gateway] gateway backend up');
   let restored = false;
+  let restoredProc = null;
   async function restoreDefault() {
     if (restored || !hadExisting) return;
     restored = true;
     try {
-      await startBackendOnDefaultPort();
+      // The handle is returned to the caller (verify.mjs), which MUST
+      // kill it — an un-killed spawned child keeps the parent's event
+      // loop open and the verify harness never exits.
+      restoredProc = await startBackendOnDefaultPort();
     } catch (e) {
       console.error('[verify] failed to restore default backend:', e);
     }
@@ -377,4 +386,5 @@ export async function runGatewayLiveChecks(existingBackend, record) {
     await mock.close();
     await restoreDefault();
   }
+  return { restoredProc };
 }
