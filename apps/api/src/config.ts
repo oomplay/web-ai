@@ -13,6 +13,32 @@ function readInt(name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * Parse a TCP port number. Unlike readInt, a set-but-invalid value is
+ * boot-fatal: PORT=0 (or any value outside 1-65535, or non-numeric
+ * garbage) must never silently fall back or bind an ephemeral port the
+ * operator cannot discover. Throwing at boot makes the misconfiguration
+ * impossible to miss instead of producing a server that is up but
+ * unreachable on the expected port.
+ */
+function readPort(name: string, fallback: number): number {
+  const v = process.env[name];
+  if (v === undefined || v === '') return fallback;
+  if (!/^\d+$/.test(v.trim())) {
+    throw new Error(
+      `${name} must be a numeric port between 1 and 65535 (got '${v}').`,
+    );
+  }
+  const n = Number.parseInt(v, 10);
+  if (n < 1 || n > 65535) {
+    throw new Error(
+      `${name} must be between 1 and 65535 (got ${n}). ` +
+        'Refusing to boot with an unusable port.',
+    );
+  }
+  return n;
+}
+
 function readBool(name: string, fallback: boolean): boolean {
   const v = process.env[name];
   if (v === undefined || v === '') return fallback;
@@ -143,7 +169,7 @@ function readSplitThinkingModels(
 }
 
 export const config = {
-  port: readInt('PORT', 8787),
+  port: readPort('PORT', 8787),
   // Allowlist of origins permitted to call this API. Comma-separated.
   corsOrigins: readCorsOrigins('CORS_ORIGIN', ['http://localhost:5173']),
   mockProviderEnabled: readBool('MOCK_PROVIDER_ENABLED', true),

@@ -569,6 +569,13 @@ async function frontendChecks() {
   // 2.8 Body size cap (64 KB).
   record('body size cap is 64 KB',
     /limit:\s*'64kb'/.test(indexSrc) || /"64kb"/.test(indexSrc));
+  // 2.16 PORT parsing: a set-but-invalid PORT must be boot-fatal, never
+  //      silently accepted (readInt used to accept PORT=0 and bind an
+  //      ephemeral port nobody could discover).
+  record('port config rejects 0 / out-of-range / garbage PORT at boot',
+    /readPort\('PORT'/.test(configSrc) &&
+      /n < 1 \|\| n > 65535/.test(configSrc) &&
+      /Refusing to boot/.test(configSrc));
   // 2.9 Sanitised provider errors.
   record('sanitised provider errors (no upstream body echo)',
     /safeProviderError|statusMessage|safeError/.test(errorUtilsSrc) ||
