@@ -1,0 +1,37 @@
+# =============================================================================
+# systemd unit for the WEB-AI static frontend server
+# =============================================================================
+# Install on the production host:
+#   sudo cp deploy/web-static/web-ai-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now web-ai-web
+#
+# Serves apps/web/dist on 127.0.0.1:8788 only. cloudflared routes public
+# traffic for chat.kiwicraft.in (non-/api paths) here. Public TLS is at
+# Cloudflare Edge; this process is never directly reachable from the
+# internet.
+# =============================================================================
+
+[Unit]
+Description=WEB-AI static frontend (chat UI)
+Documentation=https://github.com/your-org/WEB-AI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=web-ai
+Group=web-ai
+WorkingDirectory=/opt/web-ai
+ExecStart=/usr/bin/node deploy/web-static/static-server.mjs
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/web-ai
+
+[Install]
+WantedBy=multi-user.target

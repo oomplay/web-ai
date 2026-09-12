@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    allowedHosts: ['chat.kiwicraft.in', 'localhost', 'kiwicraft.in', '*.kiwicraft.in'],
   },
   preview: {
     port: 5173,

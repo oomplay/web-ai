@@ -30,6 +30,14 @@ credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
 # cert automatically.
 
 ingress:
+  # SECURITY: /api/metrics is for the operator's Prometheus scraper running
+  # ON THIS HOST (via loopback) only. It must never be reachable from the
+  # public internet. This rule must stay ABOVE the catch-all hostname rule
+  # below; cloudflared evaluates ingress rules top to bottom.
+  - hostname: chat.kiwicraft.in
+    path: ^/api/metrics$
+    service: http_status:403
+
   # Public hostname -> local API. The wildcard is NOT used; this is
   # an exact-hostname match.
   - hostname: chat.kiwicraft.in
@@ -51,6 +59,13 @@ ingress:
       # line, which is the canonical way to do this; the originRequest
       # block here is a defence-in-depth reminder.
       noTLSVerify: false
+
+  # Everything else on chat.kiwicraft.in (the static SPA, served by the
+  # local static server on loopback:8788; see deploy/web-static/).
+  # The Node API does NOT serve static files, so without this rule every
+  # non-API page would 502 from the catch-all below.
+  - hostname: chat.kiwicraft.in
+    service: http://127.0.0.1:8788
 
   # Catch-all 404. Every other hostname (or a request that misses
   # the tunnel entirely) is rejected. This prevents misconfigured

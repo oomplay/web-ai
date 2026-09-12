@@ -22,7 +22,7 @@ Type=simple
 User=cloudflared
 Group=cloudflared
 EnvironmentFile=-/etc/default/cloudflared
-ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.yml run web-ai
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.yml --proxy-add-x-forwarded-for run web-ai
 # --proxy-add-x-forwarded-for is the canonical way to make the daemon
 # forward the Cloudflare-Edge-set X-Forwarded-For header to the local
 # origin. Without it, the Node API would see the cloudflared loopback
